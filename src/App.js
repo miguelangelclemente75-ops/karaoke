@@ -132,6 +132,113 @@ async function searchYT(query) {
     }));
 }
 
+
+// ══════════════════════════════════════════════════════════
+// TV PLAYER — with loading screen
+// ══════════════════════════════════════════════════════════
+function TVPlayer({ song, nextSong }) {
+  const [loaded, setLoaded] = useState(false);
+  const [key, setKey] = useState(song?.videoId);
+
+  useEffect(() => {
+    setLoaded(false);
+    setKey(song?.videoId);
+    const timer = setTimeout(() => setLoaded(true), 8000); // fallback
+    return () => clearTimeout(timer);
+  }, [song?.videoId]);
+
+  return (
+    <div style={{ width:"100%", height:"100%", position:"relative", background:"#000" }}>
+      {/* Loading screen */}
+      {!loaded && (
+        <div style={{
+          position:"absolute", inset:0, zIndex:10,
+          background:"linear-gradient(135deg,#080018,#150030,#080018)",
+          display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          fontFamily:"Georgia,serif",
+        }}>
+          <style>{`
+            @keyframes tvShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+            @keyframes tvPulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+            @keyframes tvSpin{to{transform:rotate(360deg)}}
+            @keyframes tvDot{0%,80%,100%{transform:scale(0);opacity:0}40%{transform:scale(1);opacity:1}}
+          `}</style>
+
+          {/* Logo */}
+          <div style={{
+            fontSize:"clamp(3rem,8vw,6rem)", marginBottom:16,
+            background:"linear-gradient(90deg,#ff00ff,#00ffff,#ffcc00,#ff00ff)",
+            backgroundSize:"200% auto",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            animation:"tvShimmer 3s linear infinite",
+            letterSpacing:8, fontWeight:"bold",
+          }}>HURRICANE</div>
+
+          <div style={{ color:"rgba(255,255,255,0.4)", fontSize:"clamp(.8rem,2vw,1.2rem)", letterSpacing:4, marginBottom:48 }}>
+            🎤 KARAOKE NIGHT
+          </div>
+
+          {/* Song info */}
+          <div style={{
+            background:"rgba(255,255,255,0.04)",
+            border:"1px solid rgba(255,0,255,0.2)",
+            borderRadius:20, padding:"24px 48px",
+            textAlign:"center", marginBottom:48,
+            maxWidth:"80vw",
+          }}>
+            <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"clamp(.7rem,1.5vw,1rem)", letterSpacing:3, marginBottom:12 }}>
+              NOW LOADING
+            </div>
+            <div style={{
+              fontWeight:"bold",
+              fontSize:"clamp(1.2rem,3vw,2rem)",
+              color:"#fff",
+              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+              maxWidth:"70vw",
+              marginBottom:8,
+            }}>{song.title}</div>
+            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"clamp(.8rem,2vw,1.2rem)" }}>
+              🎤 {song.singer} · Table {song.table}
+            </div>
+          </div>
+
+          {/* Animated dots */}
+          <div style={{ display:"flex", gap:12, marginBottom:40 }}>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{
+                width: i === 2 ? 16 : 10,
+                height: i === 2 ? 16 : 10,
+                borderRadius:"50%",
+                background: i === 2 ? "#ff00ff" : "rgba(255,0,255,0.3)",
+                animation:`tvDot 1.4s ease-in-out ${i * 0.16}s infinite`,
+              }}/>
+            ))}
+          </div>
+
+          {/* Next up */}
+          {nextSong && (
+            <div style={{ color:"rgba(255,255,255,0.25)", fontSize:"clamp(.7rem,1.5vw,.95rem)", letterSpacing:2 }}>
+              UP NEXT: {nextSong.title} — 🎤 {nextSong.singer}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* YouTube iframe */}
+      <iframe
+        key={key}
+        style={{ width:"100%", height:"100%", border:"none", opacity: loaded ? 1 : 0, transition:"opacity 0.5s ease" }}
+        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&rel=0&modestbranding=1`}
+        allow="autoplay; fullscreen"
+        allowFullScreen
+        title="Karaoke"
+        onLoad={() => setLoaded(true)}
+      />
+    </div>
+  );
+}
+
 // ==============================
 // APP
 // ==============================
@@ -565,15 +672,7 @@ export default function App() {
         <style>{css}</style>
 
         {currentSong ? (
-          <div style={{ width: "100%", height: "100%" }}>
-            <iframe
-              style={{ width: "100%", height: "100%", border: "none" }}
-              src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&rel=0&modestbranding=1`}
-              allow="autoplay; fullscreen"
-              allowFullScreen
-              title="Karaoke"
-            />
-          </div>
+          <TVPlayer song={currentSong} nextSong={queue[0] || null} />
         ) : (
           <div style={{ textAlign: "center", color: "#fff" }}>
             <div style={{ fontSize: "6rem", marginBottom: 20 }}>🎤</div>
