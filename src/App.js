@@ -21,29 +21,21 @@ const YT_API_KEY = "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0";
 
 async function searchYT(query) {
   try {
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${YT_API_KEY}`;
-    const res = await fetch(searchUrl);
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${YT_API_KEY}`;
+    const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.items || data.items.length === 0) return [];
-    const ids = data.items.map(item => item.id.videoId).join(",");
-    const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${ids}&key=${YT_API_KEY}`;
-    const detailRes = await fetch(detailUrl);
-    if (!detailRes.ok) return null;
-    const detailData = await detailRes.json();
-    return detailData.items
-      .filter(item => item.status.embeddable)
-      .slice(0, 6)
-      .map(item => ({
-        id: item.id,
-        title: item.snippet.title,
-        author: item.snippet.channelTitle,
-        thumb: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-      }));
+    return data.items.map(item => ({
+      id: item.id.videoId,
+      title: item.snippet.title,
+      author: item.snippet.channelTitle,
+      thumb: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+    }));
   } catch { return null; }
 }
 
-const TABLES = [1, 2, 3, 4, 5, 6];
+const TABLES = [1, 2, 3, 4, 5, 6, 7, 8];
 const ADMIN_PASSWORD = "karaoke2024";
 
 // ─── CSS ───────────────────────────────────────────────────
@@ -83,9 +75,11 @@ const css = `
 `;
 
 export default function App() {
+  // Detect TV mode
   const isTVMode = window.location.search.includes("modo=tv");
   const urlParams = new URLSearchParams(window.location.search);
   const tableFromURL = urlParams.get("mesa") ? parseInt(urlParams.get("mesa")) : null;
+  const isDJMode = urlParams.get("dj") === "1";
 
   const [view, setView] = useState("home");
   const [name, setName] = useState("");
@@ -102,6 +96,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [myReqs, setMyReqs] = useState([]);
 
+  // Firebase state
   const [pending, setPending] = useState([]);
   const [queue, setQueue] = useState([]);
   const [currentSong, setCurrentSong] = useState(null);
@@ -113,71 +108,106 @@ export default function App() {
 
   const toast$ = (msg, type = "ok") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
+  // ── Firebase listeners ──────────────────────────────────
   useEffect(() => {
+    // Listen to pending requests
     const pendingRef = ref(db, "pending");
     const unsubPending = onValue(pendingRef, (snap) => {
       const data = snap.val();
-      setPending(data ? Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key })) : []);
+      if (data) {
+        const list = Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key }));
+        setPending(list);
+      } else {
+        setPending([]);
+      }
     });
 
+    // Listen to queue
     const queueRef = ref(db, "queue");
     const unsubQueue = onValue(queueRef, (snap) => {
       const data = snap.val();
-      setQueue(data ? Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key })) : []);
+      if (data) {
+        const list = Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key }));
+        setQueue(list);
+      } else {
+        setQueue([]);
+      }
     });
 
+    // Listen to current song (for TV)
     const currentRef = ref(db, "current");
     const unsubCurrent = onValue(currentRef, (snap) => {
-      setCurrentSong(snap.val() || null);
+      const data = snap.val();
+      setCurrentSong(data || null);
     });
 
-    return () => { unsubPending(); unsubQueue(); unsubCurrent(); };
+    return () => {
+      unsubPending();
+      unsubQueue();
+      unsubCurrent();
+    };
   }, []);
 
+  // ── YouTube search ──────────────────────────────────────
   const doSearch = async () => {
     if (!songQ.trim()) return;
-    setSearching(true); setYtResults([]); setPickedVideo(null); setYtFailed(false);
-    const results = await searchYT(songQ + " karaoke lyrics");
+    setSearching(true);
+    setYtResults([]);
+    setPickedVideo(null);
+    setYtFailed(false);
+    const results = await searchYT(songQ + " karaoke con letra");
     setSearching(false);
     if (results === null) { setYtFailed(true); }
-    else if (results.length === 0) { toast$("No results found, try a different name", "err"); }
+    else if (results.length === 0) { toast$("Sin resultados, intenta con otro nombre", "err"); }
     else { setYtResults(results); }
   };
 
+  // ── Submit request ──────────────────────────────────────
   const submitReq = async () => {
-    if (!name.trim()) { toast$("Please enter your name", "err"); return; }
-    if (!table) { toast$("Please select your table", "err"); return; }
-    if (!pickedVideo) { toast$("Please choose a video first", "err"); return; }
+    if (!name.trim()) { toast$("Escribe tu nombre", "err"); return; }
+    if (!table) { toast$("Selecciona tu mesa", "err"); return; }
+    if (!pickedVideo) { toast$("Elige un video primero", "err"); return; }
     const req = {
-      title: pickedVideo.title, author: pickedVideo.author, videoId: pickedVideo.id,
-      thumb: pickedVideo.thumb, singer: name.trim(), table, status: "pending", timestamp: Date.now(),
+      title: pickedVideo.title,
+      author: pickedVideo.author,
+      videoId: pickedVideo.id,
+      thumb: pickedVideo.thumb,
+      singer: name.trim(),
+      table,
+      status: "pending",
+      timestamp: Date.now(),
     };
     await push(ref(db, "pending"), req);
     setMyReqs(r => [...r, { ...req, id: Date.now() }]);
     setSongQ(""); setYtResults([]); setPickedVideo(null);
-    toast$("🎤 Request sent — waiting for DJ approval!");
+    toast$("🎤 Solicitud enviada — espera aprobación del DJ!");
     setView("mystatus");
   };
 
+  // ── DJ: approve ─────────────────────────────────────────
   const approve = async (req) => {
     await remove(ref(db, `pending/${req.fbKey}`));
     await push(ref(db, "queue"), {
       title: req.title, author: req.author, videoId: req.videoId,
-      thumb: req.thumb, singer: req.singer, table: req.table, timestamp: Date.now(),
+      thumb: req.thumb, singer: req.singer, table: req.table,
+      timestamp: Date.now(),
     });
-    toast$("✅ Approved");
+    toast$("✅ Aprobada");
   };
 
+  // ── DJ: reject ──────────────────────────────────────────
   const reject = async (req) => {
     await remove(ref(db, `pending/${req.fbKey}`));
-    toast$("❌ Rejected", "err");
+    toast$("❌ Rechazada", "err");
   };
 
+  // ── DJ: remove from queue ───────────────────────────────
   const removeQ = async (req) => {
     await remove(ref(db, `queue/${req.fbKey}`));
-    toast$("Removed", "err");
+    toast$("Removida", "err");
   };
 
+  // ── DJ: play song ───────────────────────────────────────
   const playSong = async (entry) => {
     await set(ref(db, "current"), {
       title: entry.title, author: entry.author, videoId: entry.videoId,
@@ -185,12 +215,13 @@ export default function App() {
     });
     await remove(ref(db, `queue/${entry.fbKey}`));
     setDjTab("now");
-    toast$("▶ Now playing on TV!");
+    toast$("▶ Reproduciendo en TV!");
   };
 
+  // ── DJ: stop song ───────────────────────────────────────
   const stopSong = async () => {
     await set(ref(db, "current"), null);
-    toast$("⏹ Stopped", "err");
+    toast$("⏹ Detenido", "err");
   };
 
   const loginAdmin = () => {
@@ -199,7 +230,7 @@ export default function App() {
   };
 
   // ══════════════════════════════════════════════════════════
-  // TV MODE
+  // TV MODE — fullscreen player only
   // ══════════════════════════════════════════════════════════
   if (isTVMode) {
     return (
@@ -213,22 +244,19 @@ export default function App() {
           </div>
         ) : (
           <div style={{ textAlign:"center", color:"#fff" }}>
-            <div style={{ fontSize:"5rem", marginBottom:10 }}>🌀</div>
-            <h1 style={{ fontSize:"4rem", marginBottom:4, background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:6 }}>
-              HURRICANE
+            <div style={{ fontSize:"6rem", marginBottom:20 }}>🎤</div>
+            <h1 style={{ fontSize:"3rem", marginBottom:10, background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              KARAOKE NIGHT
             </h1>
-            <h2 style={{ fontSize:"1.6rem", color:"rgba(255,255,255,0.55)", marginBottom:30, letterSpacing:8, fontWeight:"normal" }}>
-              🎤 KARAOKE NIGHT 🎤
-            </h2>
-            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"1.1rem", marginBottom:30 }}>
-              Scan the QR code at your table to request a song
+            <p style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.2rem", marginBottom:30 }}>
+              Escanea el QR de tu mesa para pedir una canción
             </p>
             {queue.length > 0 && (
               <div style={{ marginTop:20 }}>
-                <p style={{ color:"rgba(255,255,255,0.35)", fontSize:".9rem", marginBottom:12, letterSpacing:2 }}>UP NEXT:</p>
+                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".9rem", marginBottom:12 }}>PRÓXIMAS CANCIONES:</p>
                 {queue.slice(0,3).map((s,i) => (
-                  <div key={s.fbKey} style={{ color:i===0?"#ffcc00":"rgba(255,255,255,0.45)", fontSize:i===0?"1.1rem":".9rem", marginBottom:6 }}>
-                    {i===0?"▶ ":"  "}{s.title} — 🎤 {s.singer} (Table {s.table})
+                  <div key={s.fbKey} style={{ color:i===0?"#ffcc00":"rgba(255,255,255,0.5)", fontSize:i===0?"1.1rem":".9rem", marginBottom:6 }}>
+                    {i===0?"▶ ":"  "}{s.title} — 🎤 {s.singer} (Mesa {s.table})
                   </div>
                 ))}
               </div>
@@ -256,17 +284,15 @@ export default function App() {
 
       {/* HEADER */}
       <div style={{textAlign:"center",padding:"28px 16px 18px",borderBottom:"1px solid rgba(255,0,255,0.12)",position:"relative",zIndex:10}}>
-        <div style={{fontSize:"1.8rem",marginBottom:2}}>🌀</div>
-        <h1 className="glow" style={{fontSize:"clamp(2rem,6vw,2.8rem)",margin:"0 0 2px",letterSpacing:5}}>HURRICANE</h1>
-        <p style={{color:"rgba(255,255,255,0.5)",margin:"0 0 4px",letterSpacing:3,fontSize:".85rem"}}>🎤 KARAOKE NIGHT</p>
-        <p style={{color:"rgba(255,255,255,0.25)",margin:"0 0 14px",letterSpacing:2,fontSize:".68rem"}}>SONG REQUEST SYSTEM</p>
+        <h1 className="glow" style={{fontSize:"clamp(1.6rem,5vw,2.3rem)",margin:0,letterSpacing:3}}>🎤 KARAOKE NIGHT</h1>
+        <p style={{color:"rgba(255,255,255,0.35)",margin:"4px 0 14px",letterSpacing:2,fontSize:".72rem"}}>SISTEMA DE SOLICITUDES</p>
         <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
           {[
-            {k:"home",    label:"🏠 Home"},
-            {k:"request", label:"🎵 Request Song"},
-            {k:"mystatus",label:`📋 My Songs${myReqs.length?` (${myReqs.length})`:""}`},
-            {k:"queue",   label:`🎶 Queue (${queue.length})`},
-            {k:"admin",   label:"🔐 DJ"},
+            {k:"home",    label:"🏠 Inicio"},
+            {k:"request", label:"🎵 Pedir canción"},
+            {k:"mystatus",label:`📋 Mis solicitudes${myReqs.length?` (${myReqs.length})`:""}`},
+            {k:"queue",   label:`🎶 Cola (${queue.length})`},
+            ...(isDJMode ? [{k:"admin", label:"🔐 DJ"}] : []),
           ].map(({k,label}) => (
             <button key={k} className={`tab ${view===k?"on":""}`} onClick={() => setView(k)}>{label}</button>
           ))}
@@ -280,43 +306,43 @@ export default function App() {
           <div style={{animation:"slideIn .3s ease"}}>
             <div className="card" style={{textAlign:"center",marginBottom:18}}>
               <div style={{fontSize:"3.5rem",marginBottom:10}}>🎶</div>
-              <h2 style={{margin:"0 0 6px",fontSize:"1.4rem"}}>Welcome to Hurricane!</h2>
-              <p style={{color:"rgba(255,255,255,0.55)",margin:"0 0 22px",fontSize:".9rem"}}>Request any song and sing karaoke on the big screen</p>
+              <h2 style={{margin:"0 0 6px",fontSize:"1.4rem"}}>¡Bienvenido!</h2>
+              <p style={{color:"rgba(255,255,255,0.55)",margin:"0 0 22px",fontSize:".9rem"}}>Pide cualquier canción y canta con el karaoke en la pantalla grande</p>
               {currentSong && (
                 <div className="card-green" style={{marginBottom:18,textAlign:"left"}}>
-                  <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>NOW PLAYING</p>
+                  <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN REPRODUCCIÓN AHORA</p>
                   <div style={{fontWeight:"bold",fontSize:".9rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</div>
-                  <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
+                  <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
                 </div>
               )}
               <div style={{marginBottom:18}}>
-                <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Your name:</p>
-                <input className="inp" placeholder="What's your name?" value={name} onChange={e => setName(e.target.value)} style={{maxWidth:280,margin:"0 auto",display:"block"}} />
+                <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Tu nombre:</p>
+                <input className="inp" placeholder="¿Cómo te llamas?" value={name} onChange={e => setName(e.target.value)} style={{maxWidth:280,margin:"0 auto",display:"block"}} />
               </div>
-              {tableFromURL ? (
+                            {tableFromURL ? (
                 <div style={{marginBottom:8}}>
                   <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Your table:</p>
                   <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:16,border:"2px solid #ff00ff",background:"rgba(255,0,255,0.22)",fontWeight:"bold",fontSize:"1.6rem",color:"#ff88ff"}}>{tableFromURL}</div>
                 </div>
               ) : (
                 <>
-                  <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Select your table:</p>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
-                    {TABLES.map(t => (
-                      <button key={t} onClick={() => setTable(t)} style={{width:48,height:48,borderRadius:13,border:table===t?"2px solid #ff00ff":"1px solid rgba(255,255,255,0.18)",background:table===t?"rgba(255,0,255,0.22)":"rgba(255,255,255,0.04)",color:table===t?"#ff88ff":"rgba(255,255,255,0.65)",cursor:"pointer",fontWeight:"bold",fontSize:"1rem",transition:"all .2s"}}>{t}</button>
-                    ))}
-                  </div>
+                  <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Selecciona tu mesa:</p>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
+                {TABLES.map(t => (
+                  <button key={t} onClick={() => setTable(t)} style={{width:48,height:48,borderRadius:13,border:table===t?"2px solid #ff00ff":"1px solid rgba(255,255,255,0.18)",background:table===t?"rgba(255,0,255,0.22)":"rgba(255,255,255,0.04)",color:table===t?"#ff88ff":"rgba(255,255,255,0.65)",cursor:"pointer",fontWeight:"bold",fontSize:"1rem",transition:"all .2s"}}>{t}</button>
+                ))}
+              </div>
                 </>
               )}
-              {name && table && (
-                <div style={{textAlign:"center",animation:"slideIn .3s ease",marginTop:18}}>
-                  <p style={{color:"rgba(255,255,255,0.55)",marginBottom:14,fontSize:".9rem"}}>
-                    Hi <strong style={{color:"#ff88ff"}}>{name}</strong> · Table <strong style={{color:"#ff88ff"}}>{table}</strong>
-                  </p>
-                  <button className="btn btn-p" onClick={() => setView("request")}>🎵 Request a Song</button>
-                </div>
-              )}
             </div>
+            {name && table && (
+              <div style={{textAlign:"center",animation:"slideIn .3s ease"}}>
+                <p style={{color:"rgba(255,255,255,0.55)",marginBottom:14,fontSize:".9rem"}}>
+                  Hola <strong style={{color:"#ff88ff"}}>{name}</strong> · Mesa <strong style={{color:"#ff88ff"}}>{table}</strong>
+                </p>
+                <button className="btn btn-p" onClick={() => setView("request")}>🎵 Pedir una canción</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -325,40 +351,40 @@ export default function App() {
           <div style={{animation:"slideIn .3s ease"}}>
             {(!name || !table) && (
               <div className="card-yellow" style={{textAlign:"center",marginBottom:14}}>
-                ⚠️ First enter your name and table at <strong style={{color:"#ffcc00",cursor:"pointer"}} onClick={() => setView("home")}>Home</strong>
+                ⚠️ Primero ingresa tu nombre y mesa en <strong style={{color:"#ffcc00",cursor:"pointer"}} onClick={() => setView("home")}>Inicio</strong>
               </div>
             )}
             <div className="card" style={{marginBottom:14}}>
-              <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>🔍 Search your song:</p>
+              <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>🔍 Busca tu canción:</p>
               <div style={{display:"flex",gap:8}}>
-                <input className="inp" placeholder="Ex: Despacito, My Way, Thriller..." value={songQ}
+                <input className="inp" placeholder="Ej: Despacito, My Way, Thriller..." value={songQ}
                   onChange={e => setSongQ(e.target.value)}
                   onKeyDown={e => e.key==="Enter" && doSearch()}
                   style={{flex:1}} />
                 <button className="btn btn-p" style={{padding:"10px 16px",whiteSpace:"nowrap"}} onClick={doSearch}>🔍</button>
               </div>
-              <p style={{color:"rgba(255,255,255,0.3)",fontSize:".75rem",margin:"8px 0 0"}}>Search by song name or artist</p>
+              <p style={{color:"rgba(255,255,255,0.3)",fontSize:".75rem",margin:"8px 0 0"}}>Busca el nombre de la canción o artista</p>
             </div>
 
             {searching && (
               <div style={{textAlign:"center",padding:30}}>
                 <div className="spin"/>
-                <p style={{color:"rgba(255,255,255,0.45)",marginTop:12,fontSize:".85rem"}}>Searching on YouTube...</p>
+                <p style={{color:"rgba(255,255,255,0.45)",marginTop:12,fontSize:".85rem"}}>Buscando en YouTube...</p>
               </div>
             )}
 
             {ytFailed && (
               <div className="card" style={{textAlign:"center",padding:24,borderColor:"rgba(255,100,0,0.3)"}}>
                 <div style={{fontSize:"2rem",marginBottom:8}}>⚠️</div>
-                <p style={{color:"rgba(255,255,255,0.6)",fontSize:".85rem",marginBottom:14}}>Could not connect.<br/>Please try again.</p>
-                <button className="btn btn-p" onClick={doSearch}>🔄 Retry</button>
+                <p style={{color:"rgba(255,255,255,0.6)",fontSize:".85rem",marginBottom:14}}>No se pudo conectar.<br/>Intenta de nuevo.</p>
+                <button className="btn btn-p" onClick={doSearch}>🔄 Reintentar</button>
               </div>
             )}
 
             {!searching && !ytFailed && ytResults.length > 0 && (
               <div style={{marginBottom:14}}>
                 <p style={{color:"rgba(255,255,255,0.4)",fontSize:".8rem",marginBottom:10}}>
-                  {pickedVideo ? "✅ Video selected — you can change it or send the request:" : "Choose the karaoke video you want to sing:"}
+                  {pickedVideo ? "✅ Video seleccionado — puedes cambiarlo o enviar la solicitud:" : "Elige el video de karaoke que quieres cantar:"}
                 </p>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                   {ytResults.map(v => (
@@ -368,7 +394,7 @@ export default function App() {
                         <div style={{fontWeight:"bold",fontSize:".82rem",lineHeight:1.3,marginBottom:3,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{v.title}</div>
                         <div style={{color:"rgba(255,255,255,0.4)",fontSize:".72rem"}}>{v.author}</div>
                       </div>
-                      {pickedVideo?.id===v.id ? <span style={{fontSize:"1.3rem",flexShrink:0}}>✅</span> : <span style={{fontSize:".75rem",color:"rgba(255,255,255,0.35)",flexShrink:0}}>Select</span>}
+                      {pickedVideo?.id===v.id ? <span style={{fontSize:"1.3rem",flexShrink:0}}>✅</span> : <span style={{fontSize:".75rem",color:"rgba(255,255,255,0.35)",flexShrink:0}}>Elegir</span>}
                     </div>
                   ))}
                 </div>
@@ -377,7 +403,7 @@ export default function App() {
                     <div className="card-green" style={{marginBottom:12,textAlign:"left"}}>
                       <p style={{margin:0,fontSize:".83rem",color:"rgba(255,255,255,0.7)"}}>🎬 <strong style={{color:"#00cc66"}}>{pickedVideo.title.slice(0,60)}{pickedVideo.title.length>60?"...":""}</strong></p>
                     </div>
-                    <button className="btn btn-p" onClick={submitReq} style={{width:"100%"}}>🎤 Send Request to DJ</button>
+                    <button className="btn btn-p" onClick={submitReq} style={{width:"100%"}}>🎤 Enviar solicitud al DJ</button>
                   </div>
                 )}
               </div>
@@ -386,7 +412,7 @@ export default function App() {
             {!searching && !ytFailed && ytResults.length === 0 && !songQ && (
               <div className="card" style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.35)"}}>
                 <div style={{fontSize:"2.5rem",marginBottom:8}}>🎵</div>
-                Type a song name and press 🔍
+                Escribe el nombre de una canción y presiona 🔍
               </div>
             )}
           </div>
@@ -395,12 +421,12 @@ export default function App() {
         {/* ══ MY STATUS ══ */}
         {view==="mystatus" && (
           <div style={{animation:"slideIn .3s ease"}}>
-            <h2 style={{margin:"0 0 16px",color:"#ff88ff",fontSize:"1.1rem"}}>📋 My Requests</h2>
+            <h2 style={{margin:"0 0 16px",color:"#ff88ff",fontSize:"1.1rem"}}>📋 Mis solicitudes</h2>
             {myReqs.length === 0 ? (
               <div className="card" style={{textAlign:"center",padding:36}}>
                 <div style={{fontSize:"2.5rem",marginBottom:10}}>🎵</div>
-                <p style={{color:"rgba(255,255,255,0.45)"}}>You haven't requested any songs yet</p>
-                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:14}}>Request a Song</button>
+                <p style={{color:"rgba(255,255,255,0.45)"}}>No has pedido canciones todavía</p>
+                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:14}}>Pedir una canción</button>
               </div>
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -419,15 +445,15 @@ export default function App() {
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span style={{fontSize:".72rem",color:"rgba(255,255,255,0.4)"}}>Table {req.table}</span>
+                        <span style={{fontSize:".72rem",color:"rgba(255,255,255,0.4)"}}>Mesa {req.table}</span>
                         <span className={`badge ${status==="pending"?"badge-y":status==="approved"?"badge-g":status==="playing"?"badge-g":"badge-r"}`}>
-                          {status==="pending"?"⏳ Pending":status==="approved"?"✅ In Queue":status==="playing"?"🎤 Singing Now":"✅ Done"}
+                          {status==="pending"?"⏳ Pendiente":status==="approved"?"✅ En cola":status==="playing"?"🎤 Cantando ahora":"✅ Completada"}
                         </span>
                       </div>
                     </div>
                   );
                 })}
-                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:4}}>+ Request Another Song</button>
+                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:4}}>+ Pedir otra canción</button>
               </div>
             )}
           </div>
@@ -436,15 +462,15 @@ export default function App() {
         {/* ══ QUEUE public ══ */}
         {view==="queue" && (
           <div style={{animation:"slideIn .3s ease"}}>
-            <h2 style={{margin:"0 0 16px",color:"#ff88ff",fontSize:"1.1rem"}}>🎶 Song Queue</h2>
+            <h2 style={{margin:"0 0 16px",color:"#ff88ff",fontSize:"1.1rem"}}>🎶 Cola de canciones</h2>
             {currentSong && (
               <div className="card-green" style={{marginBottom:14}}>
-                <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>NOW PLAYING ON TV</p>
+                <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN REPRODUCCIÓN EN TV</p>
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
                   <img src={currentSong.thumb} alt="" style={{width:64,height:36,borderRadius:7,objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
                   <div>
                     <div style={{fontWeight:"bold",fontSize:".9rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}}>{currentSong.title}</div>
-                    <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
+                    <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
                   </div>
                 </div>
               </div>
@@ -452,8 +478,8 @@ export default function App() {
             {queue.length===0 ? (
               <div className="card" style={{textAlign:"center",padding:36}}>
                 <div style={{fontSize:"2.5rem",marginBottom:10}}>🎵</div>
-                <p style={{color:"rgba(255,255,255,0.45)"}}>Queue is empty — request your song!</p>
-                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:14}}>Request a Song</button>
+                <p style={{color:"rgba(255,255,255,0.45)"}}>Cola vacía — ¡pide tu canción!</p>
+                <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:14}}>Pedir canción</button>
               </div>
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -464,7 +490,7 @@ export default function App() {
                       <img src={entry.thumb} alt="" style={{width:60,height:34,borderRadius:6,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".85rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.title}</div>
-                        <div style={{color:"rgba(255,255,255,0.45)",fontSize:".75rem"}}>🎤 {entry.singer} · Table {entry.table}</div>
+                        <div style={{color:"rgba(255,255,255,0.45)",fontSize:".75rem"}}>🎤 {entry.singer} · Mesa {entry.table}</div>
                       </div>
                       {i===0 && <span className="badge badge-y">NEXT</span>}
                     </div>
@@ -480,14 +506,14 @@ export default function App() {
           <div style={{animation:"slideIn .3s ease"}}>
             <div className="card" style={{textAlign:"center",maxWidth:320,margin:"36px auto",padding:32}}>
               <div style={{fontSize:"2.8rem",marginBottom:10}}>🔐</div>
-              <h2 style={{margin:"0 0 6px",color:"#ff88ff"}}>DJ Access</h2>
-              <p style={{color:"rgba(255,255,255,0.45)",margin:"0 0 20px",fontSize:".85rem"}}>Exclusive DJ panel</p>
-              <input className="inp" type="password" placeholder="Password" value={adminPwd}
+              <h2 style={{margin:"0 0 6px",color:"#ff88ff"}}>Acceso DJ</h2>
+              <p style={{color:"rgba(255,255,255,0.45)",margin:"0 0 20px",fontSize:".85rem"}}>Panel exclusivo del DJ</p>
+              <input className="inp" type="password" placeholder="Contraseña" value={adminPwd}
                 onChange={e => { setAdminPwd(e.target.value); setAdminErr(false); }}
                 onKeyDown={e => e.key==="Enter" && loginAdmin()}
                 style={{marginBottom:10,textAlign:"center"}} />
-              {adminErr && <p style={{color:"#ff5555",fontSize:".82rem",margin:"0 0 10px"}}>❌ Incorrect password</p>}
-              <button className="btn btn-p" style={{width:"100%"}} onClick={loginAdmin}>🎛️ Enter</button>
+              {adminErr && <p style={{color:"#ff5555",fontSize:".82rem",margin:"0 0 10px"}}>❌ Contraseña incorrecta</p>}
+              <button className="btn btn-p" style={{width:"100%"}} onClick={loginAdmin}>🎛️ Entrar</button>
             </div>
           </div>
         )}
@@ -496,24 +522,25 @@ export default function App() {
         {view==="admin" && adminOk && (
           <div style={{animation:"slideIn .3s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <h2 style={{margin:0,color:"#ff88ff",fontSize:"1.1rem"}}>🎛️ DJ Panel — Hurricane</h2>
-              <button className="btn-r" onClick={() => { setAdminOk(false); setView("home"); }} style={{fontSize:".78rem"}}>🔒 Exit</button>
+              <h2 style={{margin:0,color:"#ff88ff",fontSize:"1.1rem"}}>🎛️ Panel DJ</h2>
+              <button className="btn-r" onClick={() => { setAdminOk(false); setView("home"); }} style={{fontSize:".78rem"}}>🔒 Salir</button>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
               {[
-                {k:"pending", label:`⚠️ Pending (${pending.length})`},
-                {k:"queue",   label:`📋 Queue (${queue.length})`},
-                {k:"now",     label:"🎬 Now Playing"},
+                {k:"pending", label:`⚠️ Pendientes (${pending.length})`},
+                {k:"queue",   label:`📋 Cola (${queue.length})`},
+                {k:"now",     label:"🎬 En vivo"},
               ].map(({k,label}) => (
                 <button key={k} className={`tab ${djTab===k?"on":""}`} onClick={() => setDjTab(k)}>{label}</button>
               ))}
             </div>
 
+            {/* PENDING */}
             {djTab==="pending" && (
               pending.length===0 ?
               <div className="card" style={{textAlign:"center",padding:36}}>
                 <div style={{fontSize:"2.5rem",marginBottom:10}}>✅</div>
-                <p style={{color:"rgba(255,255,255,0.45)"}}>No pending requests</p>
+                <p style={{color:"rgba(255,255,255,0.45)"}}>Sin solicitudes pendientes</p>
               </div> :
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {pending.map(req => (
@@ -523,23 +550,24 @@ export default function App() {
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".88rem",lineHeight:1.3,marginBottom:4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{req.title}</div>
                         <div style={{color:"rgba(255,255,255,0.45)",fontSize:".76rem"}}>{req.author}</div>
-                        <div style={{color:"rgba(255,255,255,0.6)",fontSize:".78rem",marginTop:4}}>🎤 <strong style={{color:"#ff88ff"}}>{req.singer}</strong> · Table {req.table}</div>
+                        <div style={{color:"rgba(255,255,255,0.6)",fontSize:".78rem",marginTop:4}}>🎤 <strong style={{color:"#ff88ff"}}>{req.singer}</strong> · Mesa {req.table}</div>
                       </div>
                     </div>
                     <div style={{display:"flex",gap:8}}>
-                      <button className="btn btn-g" style={{flex:1}} onClick={() => approve(req)}>✅ Approve</button>
-                      <button className="btn-r" style={{flex:1,textAlign:"center"}} onClick={() => reject(req)}>❌ Reject</button>
+                      <button className="btn btn-g" style={{flex:1}} onClick={() => approve(req)}>✅ Aprobar</button>
+                      <button className="btn-r" style={{flex:1,textAlign:"center"}} onClick={() => reject(req)}>❌ Rechazar</button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* QUEUE */}
             {djTab==="queue" && (
               queue.length===0 ?
               <div className="card" style={{textAlign:"center",padding:36}}>
                 <div style={{fontSize:"2.5rem",marginBottom:10}}>🎵</div>
-                <p style={{color:"rgba(255,255,255,0.45)"}}>Queue is empty</p>
+                <p style={{color:"rgba(255,255,255,0.45)"}}>Cola vacía</p>
               </div> :
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {queue.map((entry,i) => (
@@ -549,11 +577,11 @@ export default function App() {
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".88rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.title}</div>
                         <div style={{color:"rgba(255,255,255,0.45)",fontSize:".76rem"}}>{entry.author}</div>
-                        <div style={{color:"rgba(255,255,255,0.55)",fontSize:".78rem",marginTop:3}}>🎤 {entry.singer} · Table {entry.table}</div>
+                        <div style={{color:"rgba(255,255,255,0.55)",fontSize:".78rem",marginTop:3}}>🎤 {entry.singer} · Mesa {entry.table}</div>
                       </div>
                     </div>
                     <div style={{display:"flex",gap:8}}>
-                      {i===0 && <button className="btn btn-g" style={{flex:1}} onClick={() => playSong(entry)}>▶ Play on TV</button>}
+                      {i===0 && <button className="btn btn-g" style={{flex:1}} onClick={() => playSong(entry)}>▶ Play en TV</button>}
                       <button className="btn-r" onClick={() => removeQ(entry)}>✕</button>
                     </div>
                   </div>
@@ -561,25 +589,26 @@ export default function App() {
               </div>
             )}
 
+            {/* NOW PLAYING */}
             {djTab==="now" && (
               !currentSong ?
               <div className="card" style={{textAlign:"center",padding:36}}>
                 <div style={{fontSize:"2.5rem",marginBottom:10}}>🎬</div>
-                <p style={{color:"rgba(255,255,255,0.45)"}}>No song currently playing</p>
-                <p style={{color:"rgba(255,255,255,0.3)",fontSize:".82rem",marginTop:6}}>Approve requests and hit ▶ Play from the Queue</p>
+                <p style={{color:"rgba(255,255,255,0.45)"}}>Ninguna canción en reproducción</p>
+                <p style={{color:"rgba(255,255,255,0.3)",fontSize:".82rem",marginTop:6}}>Aprueba solicitudes y dale ▶ Play desde la Cola</p>
               </div> :
               <div>
                 <div className="card-green" style={{marginBottom:14,textAlign:"center"}}>
-                  <p style={{margin:"0 0 4px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>LIVE ON TV</p>
+                  <p style={{margin:"0 0 4px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN VIVO EN LA TV</p>
                   <div style={{fontWeight:"bold",fontSize:"1rem",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</div>
-                  <div style={{color:"rgba(255,255,255,0.55)",fontSize:".82rem",marginBottom:12}}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
+                  <div style={{color:"rgba(255,255,255,0.55)",fontSize:".82rem",marginBottom:12}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
                   <div style={{display:"flex",gap:10,justifyContent:"center"}}>
-                    <button className="btn-r" onClick={stopSong}>⏹ Stop</button>
-                    {queue.length>0 && <button className="btn btn-g" onClick={() => playSong(queue[0])}>⏭ Next</button>}
+                    <button className="btn-r" onClick={stopSong}>⏹ Detener</button>
+                    {queue.length>0 && <button className="btn btn-g" onClick={() => playSong(queue[0])}>⏭ Siguiente</button>}
                   </div>
                 </div>
                 <p style={{color:"rgba(255,255,255,0.4)",fontSize:".8rem",textAlign:"center"}}>
-                  📺 Video is playing on the TV
+                  📺 El video está reproduciéndose en la TV
                 </p>
               </div>
             )}
