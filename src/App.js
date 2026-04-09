@@ -1,10 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, set, onValue, push, remove } from "firebase/database";
 
-const TABLES = [1, 2, 3, 4, 5, 6, 7, 8];
-const ADMIN_PASSWORD = "karaoke2024";
+// ─── Firebase Config ───────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCCp5XcNOw6Kbs_wv5Mg2LojV8BY2rTrbI",
+  authDomain: "karaoke-app-1e2ce.firebaseapp.com",
+  databaseURL: "https://karaoke-app-1e2ce-default-rtdb.firebaseio.com",
+  projectId: "karaoke-app-1e2ce",
+  storageBucket: "karaoke-app-1e2ce.firebasestorage.app",
+  messagingSenderId: "404006629002",
+  appId: "1:404006629002:web:dd4ec169ad20b473798773"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+
+// ─── YouTube API ───────────────────────────────────────────
 const YT_API_KEY = "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0";
 
-// ─── YouTube Data API v3 oficial ───────────────────────────
 async function searchYT(query) {
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${YT_API_KEY}`;
@@ -17,12 +31,12 @@ async function searchYT(query) {
       title: item.snippet.title,
       author: item.snippet.channelTitle,
       thumb: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-      duration: "",
     }));
-  } catch (e) {
-    return null;
-  }
+  } catch { return null; }
 }
+
+const TABLES = [1, 2, 3, 4, 5, 6, 7, 8];
+const ADMIN_PASSWORD = "karaoke2024";
 
 // ─── CSS ───────────────────────────────────────────────────
 const css = `
@@ -31,10 +45,12 @@ const css = `
   @keyframes slideIn{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
   @keyframes toastIn{from{transform:translateX(110px);opacity:0}to{transform:translateX(0);opacity:1}}
   @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
   .fn{position:fixed;color:#ff00ff;animation:floatNote 9s linear infinite;pointer-events:none;z-index:0}
   .card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:18px;padding:20px;animation:slideIn .3s ease}
   .card-green{background:rgba(0,200,100,0.07);border:1px solid rgba(0,200,100,0.25);border-radius:18px;padding:20px}
   .card-yellow{background:rgba(255,200,0,0.07);border:1px solid rgba(255,200,0,0.25);border-radius:18px;padding:16px}
+  .card-red{background:rgba(255,50,50,0.07);border:1px solid rgba(255,50,50,0.25);border-radius:18px;padding:16px}
   .glow{background:linear-gradient(90deg,#ff00ff,#00ffff,#ff00ff);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s linear infinite}
   .btn{border:none;color:#fff;border-radius:50px;cursor:pointer;font-family:Georgia,serif;font-weight:bold;transition:all .2s;letter-spacing:.5px}
   .btn-p{background:linear-gradient(135deg,#ff00ff,#9900ff);padding:11px 26px;font-size:.95rem}
@@ -55,9 +71,13 @@ const css = `
   .badge-y{background:rgba(255,200,0,0.2);border:1px solid rgba(255,200,0,0.4);color:#ffcc00}
   .badge-g{background:rgba(0,200,100,0.2);border:1px solid rgba(0,200,100,0.4);color:#00cc66}
   .badge-r{background:rgba(255,50,50,0.2);border:1px solid rgba(255,50,50,0.4);color:#ff6666}
+  .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff4444;animation:blink 1s ease infinite;margin-right:6px}
 `;
 
 export default function App() {
+  // Detect TV mode
+  const isTVMode = window.location.search.includes("modo=tv");
+
   const [view, setView] = useState("home");
   const [name, setName] = useState("");
   const [table, setTable] = useState(null);
@@ -66,16 +86,17 @@ export default function App() {
   const [ytResults, setYtResults] = useState([]);
   const [ytFailed, setYtFailed] = useState(false);
   const [pickedVideo, setPickedVideo] = useState(null);
-  const [pending, setPending] = useState([]);
-  const [queue, setQueue] = useState([]);
-  const [myReqs, setMyReqs] = useState([]);
   const [adminOk, setAdminOk] = useState(false);
   const [adminPwd, setAdminPwd] = useState("");
   const [adminErr, setAdminErr] = useState(false);
   const [djTab, setDjTab] = useState("pending");
-  const [currentSong, setCurrentSong] = useState(null);
-  const [playing, setPlaying] = useState(false);
   const [toast, setToast] = useState(null);
+  const [myReqs, setMyReqs] = useState([]);
+
+  // Firebase state
+  const [pending, setPending] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [currentSong, setCurrentSong] = useState(null);
 
   const notes = Array.from({ length: 7 }, (_, i) => ({
     left: `${8 + i * 13}%`, delay: `${i * 1.1}s`,
@@ -84,6 +105,47 @@ export default function App() {
 
   const toast$ = (msg, type = "ok") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
+  // ── Firebase listeners ──────────────────────────────────
+  useEffect(() => {
+    // Listen to pending requests
+    const pendingRef = ref(db, "pending");
+    const unsubPending = onValue(pendingRef, (snap) => {
+      const data = snap.val();
+      if (data) {
+        const list = Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key }));
+        setPending(list);
+      } else {
+        setPending([]);
+      }
+    });
+
+    // Listen to queue
+    const queueRef = ref(db, "queue");
+    const unsubQueue = onValue(queueRef, (snap) => {
+      const data = snap.val();
+      if (data) {
+        const list = Object.entries(data).map(([key, val]) => ({ ...val, fbKey: key }));
+        setQueue(list);
+      } else {
+        setQueue([]);
+      }
+    });
+
+    // Listen to current song (for TV)
+    const currentRef = ref(db, "current");
+    const unsubCurrent = onValue(currentRef, (snap) => {
+      const data = snap.val();
+      setCurrentSong(data || null);
+    });
+
+    return () => {
+      unsubPending();
+      unsubQueue();
+      unsubCurrent();
+    };
+  }, []);
+
+  // ── YouTube search ──────────────────────────────────────
   const doSearch = async () => {
     if (!songQ.trim()) return;
     setSearching(true);
@@ -92,21 +154,17 @@ export default function App() {
     setYtFailed(false);
     const results = await searchYT(songQ + " karaoke con letra");
     setSearching(false);
-    if (results === null) {
-      setYtFailed(true);
-    } else if (results.length === 0) {
-      toast$("Sin resultados, intenta con otro nombre", "err");
-    } else {
-      setYtResults(results);
-    }
+    if (results === null) { setYtFailed(true); }
+    else if (results.length === 0) { toast$("Sin resultados, intenta con otro nombre", "err"); }
+    else { setYtResults(results); }
   };
 
-  const submitReq = () => {
+  // ── Submit request ──────────────────────────────────────
+  const submitReq = async () => {
     if (!name.trim()) { toast$("Escribe tu nombre", "err"); return; }
     if (!table) { toast$("Selecciona tu mesa", "err"); return; }
     if (!pickedVideo) { toast$("Elige un video primero", "err"); return; }
     const req = {
-      id: Date.now(),
       title: pickedVideo.title,
       author: pickedVideo.author,
       videoId: pickedVideo.id,
@@ -114,43 +172,101 @@ export default function App() {
       singer: name.trim(),
       table,
       status: "pending",
+      timestamp: Date.now(),
     };
-    setPending(p => [...p, req]);
-    setMyReqs(r => [...r, req]);
+    await push(ref(db, "pending"), req);
+    setMyReqs(r => [...r, { ...req, id: Date.now() }]);
     setSongQ(""); setYtResults([]); setPickedVideo(null);
     toast$("🎤 Solicitud enviada — espera aprobación del DJ!");
     setView("mystatus");
   };
 
-  const approve = (req) => {
-    setPending(p => p.filter(r => r.id !== req.id));
-    setQueue(q => [...q, { ...req, status: "approved" }]);
-    setMyReqs(r => r.map(x => x.id === req.id ? { ...x, status: "approved" } : x));
+  // ── DJ: approve ─────────────────────────────────────────
+  const approve = async (req) => {
+    await remove(ref(db, `pending/${req.fbKey}`));
+    await push(ref(db, "queue"), {
+      title: req.title, author: req.author, videoId: req.videoId,
+      thumb: req.thumb, singer: req.singer, table: req.table,
+      timestamp: Date.now(),
+    });
     toast$("✅ Aprobada");
   };
 
-  const reject = (req) => {
-    setPending(p => p.filter(r => r.id !== req.id));
-    setMyReqs(r => r.map(x => x.id === req.id ? { ...x, status: "rejected" } : x));
+  // ── DJ: reject ──────────────────────────────────────────
+  const reject = async (req) => {
+    await remove(ref(db, `pending/${req.fbKey}`));
     toast$("❌ Rechazada", "err");
   };
 
-  const removeQ = (id) => { setQueue(q => q.filter(i => i.id !== id)); toast$("Removida", "err"); };
-
-  const playSong = (entry) => {
-    setCurrentSong(entry);
-    setQueue(q => q.filter(i => i.id !== entry.id));
-    setPlaying(true);
-    setDjTab("now");
+  // ── DJ: remove from queue ───────────────────────────────
+  const removeQ = async (req) => {
+    await remove(ref(db, `queue/${req.fbKey}`));
+    toast$("Removida", "err");
   };
 
-  const stopSong = () => { setPlaying(false); setCurrentSong(null); };
+  // ── DJ: play song ───────────────────────────────────────
+  const playSong = async (entry) => {
+    await set(ref(db, "current"), {
+      title: entry.title, author: entry.author, videoId: entry.videoId,
+      thumb: entry.thumb, singer: entry.singer, table: entry.table,
+    });
+    await remove(ref(db, `queue/${entry.fbKey}`));
+    setDjTab("now");
+    toast$("▶ Reproduciendo en TV!");
+  };
+
+  // ── DJ: stop song ───────────────────────────────────────
+  const stopSong = async () => {
+    await set(ref(db, "current"), null);
+    toast$("⏹ Detenido", "err");
+  };
 
   const loginAdmin = () => {
     if (adminPwd === ADMIN_PASSWORD) { setAdminOk(true); setAdminErr(false); setAdminPwd(""); }
     else { setAdminErr(true); setAdminPwd(""); }
   };
 
+  // ══════════════════════════════════════════════════════════
+  // TV MODE — fullscreen player only
+  // ══════════════════════════════════════════════════════════
+  if (isTVMode) {
+    return (
+      <div style={{ width:"100vw", height:"100vh", background:"#000", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"Georgia,serif" }}>
+        <style>{css}</style>
+        {currentSong ? (
+          <div style={{ width:"100%", height:"100%" }}>
+            <iframe style={{ width:"100%", height:"100%", border:"none" }}
+              src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&rel=0&modestbranding=1`}
+              allow="autoplay; fullscreen" allowFullScreen title="Karaoke" />
+          </div>
+        ) : (
+          <div style={{ textAlign:"center", color:"#fff" }}>
+            <div style={{ fontSize:"6rem", marginBottom:20 }}>🎤</div>
+            <h1 style={{ fontSize:"3rem", marginBottom:10, background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              KARAOKE NIGHT
+            </h1>
+            <p style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.2rem", marginBottom:30 }}>
+              Escanea el QR de tu mesa para pedir una canción
+            </p>
+            {queue.length > 0 && (
+              <div style={{ marginTop:20 }}>
+                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".9rem", marginBottom:12 }}>PRÓXIMAS CANCIONES:</p>
+                {queue.slice(0,3).map((s,i) => (
+                  <div key={s.fbKey} style={{ color:i===0?"#ffcc00":"rgba(255,255,255,0.5)", fontSize:i===0?"1.1rem":".9rem", marginBottom:6 }}>
+                    {i===0?"▶ ":"  "}{s.title} — 🎤 {s.singer} (Mesa {s.table})
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // NORMAL MODE
+  // ══════════════════════════════════════════════════════════
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#08001a 0%,#160030 50%,#0a0018 100%)", fontFamily:"Georgia,serif", color:"#fff", position:"relative", overflow:"hidden" }}>
       <style>{css}</style>
@@ -158,23 +274,8 @@ export default function App() {
       {notes.map((n,i) => <div key={i} className="fn" style={{left:n.left,animationDelay:n.delay,fontSize:n.size,opacity:n.op}}>♪</div>)}
 
       {toast && (
-        <div style={{position:"fixed",top:18,right:18,zIndex:1100,background:toast.type==="err"?"rgba(220,40,40,0.92)":"rgba(30,180,90,0.92)",padding:"11px 22px",borderRadius:14,fontWeight:"bold",fontSize:".9rem",animation:"toastIn .3s ease",boxShadow:"0 4px 20px rgba(0,0,0,0.4)",maxWidth:300}}>
+        <div style={{position:"fixed",top:18,right:18,zIndex:1100,background:toast.type==="err"?"rgba(220,40,40,0.92)":"rgba(30,180,90,0.92)",padding:"11px 22px",borderRadius:14,fontWeight:"bold",fontSize:".9rem",animation:"toastIn .3s ease",maxWidth:300}}>
           {toast.msg}
-        </div>
-      )}
-
-      {/* fullscreen player */}
-      {playing && currentSong && (
-        <div style={{position:"fixed",inset:0,background:"#000",zIndex:2000,display:"flex",flexDirection:"column"}}>
-          <div style={{position:"absolute",top:14,right:14,zIndex:2001,display:"flex",gap:10}}>
-            <div style={{background:"rgba(0,0,0,0.7)",padding:"6px 16px",borderRadius:30,fontSize:".85rem",color:"#ff88ff",border:"1px solid rgba(255,0,255,0.3)"}}>
-              🎤 {currentSong.singer} · Mesa {currentSong.table}
-            </div>
-            <button onClick={stopSong} style={{background:"rgba(220,40,40,0.85)",border:"none",color:"#fff",padding:"8px 18px",borderRadius:30,cursor:"pointer",fontFamily:"Georgia",fontWeight:"bold"}}>✕ Cerrar</button>
-          </div>
-          <iframe style={{width:"100%",height:"100%",border:"none"}}
-            src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&rel=0&modestbranding=1`}
-            allow="autoplay; fullscreen" allowFullScreen title="Karaoke" />
         </div>
       )}
 
@@ -186,7 +287,7 @@ export default function App() {
           {[
             {k:"home",    label:"🏠 Inicio"},
             {k:"request", label:"🎵 Pedir canción"},
-            {k:"mystatus",label:`📋 Mis solicitudes${myReqs.length?` (${myReqs.length})`:""}` },
+            {k:"mystatus",label:`📋 Mis solicitudes${myReqs.length?` (${myReqs.length})`:""}`},
             {k:"queue",   label:`🎶 Cola (${queue.length})`},
             {k:"admin",   label:"🔐 DJ"},
           ].map(({k,label}) => (
@@ -204,6 +305,13 @@ export default function App() {
               <div style={{fontSize:"3.5rem",marginBottom:10}}>🎶</div>
               <h2 style={{margin:"0 0 6px",fontSize:"1.4rem"}}>¡Bienvenido!</h2>
               <p style={{color:"rgba(255,255,255,0.55)",margin:"0 0 22px",fontSize:".9rem"}}>Pide cualquier canción y canta con el karaoke en la pantalla grande</p>
+              {currentSong && (
+                <div className="card-green" style={{marginBottom:18,textAlign:"left"}}>
+                  <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN REPRODUCCIÓN AHORA</p>
+                  <div style={{fontWeight:"bold",fontSize:".9rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</div>
+                  <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
+                </div>
+              )}
               <div style={{marginBottom:18}}>
                 <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Tu nombre:</p>
                 <input className="inp" placeholder="¿Cómo te llamas?" value={name} onChange={e => setName(e.target.value)} style={{maxWidth:280,margin:"0 auto",display:"block"}} />
@@ -248,7 +356,7 @@ export default function App() {
 
             {searching && (
               <div style={{textAlign:"center",padding:30}}>
-                <div className="spin" />
+                <div className="spin"/>
                 <p style={{color:"rgba(255,255,255,0.45)",marginTop:12,fontSize:".85rem"}}>Buscando en YouTube...</p>
               </div>
             )}
@@ -256,7 +364,7 @@ export default function App() {
             {ytFailed && (
               <div className="card" style={{textAlign:"center",padding:24,borderColor:"rgba(255,100,0,0.3)"}}>
                 <div style={{fontSize:"2rem",marginBottom:8}}>⚠️</div>
-                <p style={{color:"rgba(255,255,255,0.6)",fontSize:".85rem",marginBottom:14}}>No se pudo conectar con YouTube.<br/>Intenta de nuevo.</p>
+                <p style={{color:"rgba(255,255,255,0.6)",fontSize:".85rem",marginBottom:14}}>No se pudo conectar.<br/>Intenta de nuevo.</p>
                 <button className="btn btn-p" onClick={doSearch}>🔄 Reintentar</button>
               </div>
             )}
@@ -269,29 +377,21 @@ export default function App() {
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
                   {ytResults.map(v => (
                     <div key={v.id} className={`vcard ${pickedVideo?.id===v.id?"sel":""}`} onClick={() => setPickedVideo(v)}>
-                      <img src={v.thumb} alt="" style={{width:80,height:45,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e => e.target.style.display="none"} />
+                      <img src={v.thumb} alt="" style={{width:80,height:45,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".82rem",lineHeight:1.3,marginBottom:3,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{v.title}</div>
                         <div style={{color:"rgba(255,255,255,0.4)",fontSize:".72rem"}}>{v.author}</div>
                       </div>
-                      {pickedVideo?.id===v.id
-                        ? <span style={{fontSize:"1.3rem",flexShrink:0}}>✅</span>
-                        : <span style={{fontSize:".75rem",color:"rgba(255,255,255,0.35)",flexShrink:0}}>Elegir</span>
-                      }
+                      {pickedVideo?.id===v.id ? <span style={{fontSize:"1.3rem",flexShrink:0}}>✅</span> : <span style={{fontSize:".75rem",color:"rgba(255,255,255,0.35)",flexShrink:0}}>Elegir</span>}
                     </div>
                   ))}
                 </div>
-
                 {pickedVideo && (
                   <div style={{textAlign:"center"}}>
                     <div className="card-green" style={{marginBottom:12,textAlign:"left"}}>
-                      <p style={{margin:0,fontSize:".83rem",color:"rgba(255,255,255,0.7)"}}>
-                        🎬 <strong style={{color:"#00cc66"}}>{pickedVideo.title.slice(0,60)}{pickedVideo.title.length>60?"...":""}</strong>
-                      </p>
+                      <p style={{margin:0,fontSize:".83rem",color:"rgba(255,255,255,0.7)"}}>🎬 <strong style={{color:"#00cc66"}}>{pickedVideo.title.slice(0,60)}{pickedVideo.title.length>60?"...":""}</strong></p>
                     </div>
-                    <button className="btn btn-p" onClick={submitReq} style={{width:"100%"}}>
-                      🎤 Enviar solicitud al DJ
-                    </button>
+                    <button className="btn btn-p" onClick={submitReq} style={{width:"100%"}}>🎤 Enviar solicitud al DJ</button>
                   </div>
                 )}
               </div>
@@ -318,23 +418,29 @@ export default function App() {
               </div>
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {[...myReqs].reverse().map(req => (
-                  <div key={req.id} className="card" style={{padding:"14px 18px"}}>
-                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-                      <img src={req.thumb} alt="" style={{width:72,height:40,borderRadius:7,objectFit:"cover",flexShrink:0}} onError={e => e.target.style.display="none"} />
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:"bold",fontSize:".88rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.title}</div>
-                        <div style={{color:"rgba(255,255,255,0.45)",fontSize:".75rem",marginTop:3}}>{req.author}</div>
+                {[...myReqs].reverse().map((req,i) => {
+                  const inPending = pending.some(p => p.videoId === req.videoId && p.singer === req.singer);
+                  const inQueue = queue.some(q => q.videoId === req.videoId && q.singer === req.singer);
+                  const isPlaying = currentSong?.videoId === req.videoId && currentSong?.singer === req.singer;
+                  const status = isPlaying ? "playing" : inQueue ? "approved" : inPending ? "pending" : "done";
+                  return (
+                    <div key={i} className="card" style={{padding:"14px 18px"}}>
+                      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+                        <img src={req.thumb} alt="" style={{width:72,height:40,borderRadius:7,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:"bold",fontSize:".88rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.title}</div>
+                          <div style={{color:"rgba(255,255,255,0.45)",fontSize:".75rem",marginTop:3}}>{req.author}</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <span style={{fontSize:".72rem",color:"rgba(255,255,255,0.4)"}}>Mesa {req.table}</span>
+                        <span className={`badge ${status==="pending"?"badge-y":status==="approved"?"badge-g":status==="playing"?"badge-g":"badge-r"}`}>
+                          {status==="pending"?"⏳ Pendiente":status==="approved"?"✅ En cola":status==="playing"?"🎤 Cantando ahora":"✅ Completada"}
+                        </span>
                       </div>
                     </div>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <span style={{fontSize:".72rem",color:"rgba(255,255,255,0.4)"}}>Mesa {req.table}</span>
-                      <span className={`badge ${req.status==="pending"?"badge-y":req.status==="approved"?"badge-g":"badge-r"}`}>
-                        {req.status==="pending"?"⏳ Pendiente":req.status==="approved"?"✅ En cola":"❌ Rechazada"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <button className="btn btn-p" onClick={() => setView("request")} style={{marginTop:4}}>+ Pedir otra canción</button>
               </div>
             )}
@@ -345,11 +451,11 @@ export default function App() {
         {view==="queue" && (
           <div style={{animation:"slideIn .3s ease"}}>
             <h2 style={{margin:"0 0 16px",color:"#ff88ff",fontSize:"1.1rem"}}>🎶 Cola de canciones</h2>
-            {currentSong && playing && (
+            {currentSong && (
               <div className="card-green" style={{marginBottom:14}}>
-                <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)",letterSpacing:1}}>● EN REPRODUCCIÓN</p>
+                <p style={{margin:"0 0 6px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN REPRODUCCIÓN EN TV</p>
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <img src={currentSong.thumb} alt="" style={{width:64,height:36,borderRadius:7,objectFit:"cover"}} onError={e => e.target.style.display="none"} />
+                  <img src={currentSong.thumb} alt="" style={{width:64,height:36,borderRadius:7,objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
                   <div>
                     <div style={{fontWeight:"bold",fontSize:".9rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}}>{currentSong.title}</div>
                     <div style={{color:"rgba(255,255,255,0.5)",fontSize:".78rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
@@ -366,10 +472,10 @@ export default function App() {
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {queue.map((entry,i) => (
-                  <div key={entry.id} className="card" style={{padding:"12px 16px"}}>
+                  <div key={entry.fbKey} className="card" style={{padding:"12px 16px"}}>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
                       <div style={{width:30,height:30,borderRadius:"50%",background:i===0?"linear-gradient(135deg,#ff00ff,#9900ff)":"rgba(255,255,255,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"bold",fontSize:".82rem",flexShrink:0}}>{i+1}</div>
-                      <img src={entry.thumb} alt="" style={{width:60,height:34,borderRadius:6,objectFit:"cover",flexShrink:0}} onError={e => e.target.style.display="none"} />
+                      <img src={entry.thumb} alt="" style={{width:60,height:34,borderRadius:6,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".85rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.title}</div>
                         <div style={{color:"rgba(255,255,255,0.45)",fontSize:".75rem"}}>🎤 {entry.singer} · Mesa {entry.table}</div>
@@ -426,9 +532,9 @@ export default function App() {
               </div> :
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {pending.map(req => (
-                  <div key={req.id} className="card" style={{padding:"14px 16px"}}>
+                  <div key={req.fbKey} className="card" style={{padding:"14px 16px"}}>
                     <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
-                      <img src={req.thumb} alt="" style={{width:90,height:50,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e => e.target.style.display="none"} />
+                      <img src={req.thumb} alt="" style={{width:90,height:50,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".88rem",lineHeight:1.3,marginBottom:4,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{req.title}</div>
                         <div style={{color:"rgba(255,255,255,0.45)",fontSize:".76rem"}}>{req.author}</div>
@@ -453,9 +559,9 @@ export default function App() {
               </div> :
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {queue.map((entry,i) => (
-                  <div key={entry.id} className="card" style={{padding:"14px 16px"}}>
+                  <div key={entry.fbKey} className="card" style={{padding:"14px 16px"}}>
                     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-                      <img src={entry.thumb} alt="" style={{width:80,height:45,borderRadius:7,objectFit:"cover",flexShrink:0}} onError={e => e.target.style.display="none"} />
+                      <img src={entry.thumb} alt="" style={{width:80,height:45,borderRadius:7,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:"bold",fontSize:".88rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.title}</div>
                         <div style={{color:"rgba(255,255,255,0.45)",fontSize:".76rem"}}>{entry.author}</div>
@@ -464,7 +570,7 @@ export default function App() {
                     </div>
                     <div style={{display:"flex",gap:8}}>
                       {i===0 && <button className="btn btn-g" style={{flex:1}} onClick={() => playSong(entry)}>▶ Play en TV</button>}
-                      <button className="btn-r" onClick={() => removeQ(entry.id)}>✕</button>
+                      <button className="btn-r" onClick={() => removeQ(entry)}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -481,24 +587,21 @@ export default function App() {
               </div> :
               <div>
                 <div className="card-green" style={{marginBottom:14,textAlign:"center"}}>
-                  <p style={{margin:"0 0 4px",fontSize:".72rem",color:"rgba(255,255,255,0.5)",letterSpacing:1}}>● EN VIVO EN LA TV</p>
+                  <p style={{margin:"0 0 4px",fontSize:".72rem",color:"rgba(255,255,255,0.5)"}}><span className="live-dot"/>EN VIVO EN LA TV</p>
                   <div style={{fontWeight:"bold",fontSize:"1rem",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentSong.title}</div>
                   <div style={{color:"rgba(255,255,255,0.55)",fontSize:".82rem",marginBottom:12}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
                   <div style={{display:"flex",gap:10,justifyContent:"center"}}>
                     <button className="btn-r" onClick={stopSong}>⏹ Detener</button>
-                    {queue.length>0 && <button className="btn btn-g" onClick={() => { stopSong(); setTimeout(() => playSong(queue[0]), 100); }}>⏭ Siguiente</button>}
+                    {queue.length>0 && <button className="btn btn-g" onClick={() => playSong(queue[0])}>⏭ Siguiente</button>}
                   </div>
                 </div>
-                <div style={{position:"relative",width:"100%",paddingBottom:"56.25%",borderRadius:14,overflow:"hidden",background:"#000"}}>
-                  <iframe style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",border:"none"}}
-                    src={`https://www.youtube.com/embed/${currentSong.videoId}?autoplay=1&rel=0&modestbranding=1`}
-                    allow="autoplay; fullscreen" allowFullScreen title="Karaoke" />
-                </div>
+                <p style={{color:"rgba(255,255,255,0.4)",fontSize:".8rem",textAlign:"center"}}>
+                  📺 El video está reproduciéndose en la TV
+                </p>
               </div>
             )}
           </div>
         )}
-
       </div>
     </div>
   );
