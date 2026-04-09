@@ -84,10 +84,12 @@ const css = `
 
 export default function App() {
   const isTVMode = window.location.search.includes("modo=tv");
+  const urlParams = new URLSearchParams(window.location.search);
+  const tableFromURL = urlParams.get("mesa") ? parseInt(urlParams.get("mesa")) : null;
 
   const [view, setView] = useState("home");
   const [name, setName] = useState("");
-  const [table, setTable] = useState(null);
+  const [table, setTable] = useState(tableFromURL);
   const [songQ, setSongQ] = useState("");
   const [searching, setSearching] = useState(false);
   const [ytResults, setYtResults] = useState([]);
@@ -291,12 +293,21 @@ export default function App() {
                 <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Your name:</p>
                 <input className="inp" placeholder="What's your name?" value={name} onChange={e => setName(e.target.value)} style={{maxWidth:280,margin:"0 auto",display:"block"}} />
               </div>
-              <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Select your table:</p>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
-                {TABLES.map(t => (
-                  <button key={t} onClick={() => setTable(t)} style={{width:48,height:48,borderRadius:13,border:table===t?"2px solid #ff00ff":"1px solid rgba(255,255,255,0.18)",background:table===t?"rgba(255,0,255,0.22)":"rgba(255,255,255,0.04)",color:table===t?"#ff88ff":"rgba(255,255,255,0.65)",cursor:"pointer",fontWeight:"bold",fontSize:"1rem",transition:"all .2s"}}>{t}</button>
-                ))}
-              </div>
+              {tableFromURL ? (
+                <div style={{marginBottom:8}}>
+                  <p style={{margin:"0 0 8px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Your table:</p>
+                  <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:16,border:"2px solid #ff00ff",background:"rgba(255,0,255,0.22)",fontWeight:"bold",fontSize:"1.6rem",color:"#ff88ff"}}>{tableFromURL}</div>
+                </div>
+              ) : (
+                <>
+                  <p style={{margin:"0 0 10px",fontWeight:"bold",color:"#ff88ff",fontSize:".9rem"}}>Select your table:</p>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
+                    {TABLES.map(t => (
+                      <button key={t} onClick={() => setTable(t)} style={{width:48,height:48,borderRadius:13,border:table===t?"2px solid #ff00ff":"1px solid rgba(255,255,255,0.18)",background:table===t?"rgba(255,0,255,0.22)":"rgba(255,255,255,0.04)",color:table===t?"#ff88ff":"rgba(255,255,255,0.65)",cursor:"pointer",fontWeight:"bold",fontSize:"1rem",transition:"all .2s"}}>{t}</button>
+                    ))}
+                  </div>
+                </>
+              )}
               {name && table && (
                 <div style={{textAlign:"center",animation:"slideIn .3s ease",marginTop:18}}>
                   <p style={{color:"rgba(255,255,255,0.55)",marginBottom:14,fontSize:".9rem"}}>
