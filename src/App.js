@@ -138,6 +138,7 @@ async function searchYT(query) {
 export default function App() {
   const runtime = useMemo(() => getRuntimeParams(), []);
   const { isTVMode, isDJMode, tableFromURL } = runtime;
+  const isNextUpMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("modo") === "nextup";
 
   const [view, setView] = useState("home");
   const [name, setName] = useState("");
@@ -446,6 +447,106 @@ export default function App() {
     if (pending.some((p) => p.fbKey === requestId)) return "pending";
     return "done";
   };
+
+  // ══════════════════════════════════════════════════════════
+  // NEXT UP MODE — second TV screen showing queue
+  // ══════════════════════════════════════════════════════════
+  if (isNextUpMode) {
+    return (
+      <div style={{ width:"100vw", height:"100vh", background:"#080018", display:"flex", flexDirection:"column", fontFamily:"Georgia,serif", overflow:"hidden" }}>
+        <style>{css}</style>
+        <style>{`
+          @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
+          @keyframes fadeRow { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        `}</style>
+
+        {/* HEADER */}
+        <div style={{ background:"linear-gradient(90deg,#1a0035,#0d001a)", borderBottom:"3px solid #ff00ff", padding:"20px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:"2.5rem", fontWeight:"bold", background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:4 }}>HURRICANE</div>
+            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1rem", letterSpacing:3 }}>🎤 KARAOKE NIGHT</div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"1rem", letterSpacing:2 }}>COMING UP NEXT</div>
+            <div style={{ color:"#ffcc00", fontSize:"2rem", fontWeight:"bold" }}>{queue.length} in queue</div>
+          </div>
+        </div>
+
+        {/* NOW PLAYING BAR */}
+        {currentSong && (
+          <div style={{ background:"rgba(0,200,100,0.12)", borderBottom:"2px solid rgba(0,200,100,0.4)", padding:"16px 40px", display:"flex", alignItems:"center", gap:20, flexShrink:0 }}>
+            <span className="live-dot" style={{ width:14, height:14 }}/>
+            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.1rem", letterSpacing:2, flexShrink:0 }}>NOW PLAYING</div>
+            <div style={{ fontWeight:"bold", fontSize:"1.4rem", color:"#00ff88", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{currentSong.title}</div>
+            <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"1.1rem", flexShrink:0 }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
+          </div>
+        )}
+
+        {/* QUEUE LIST */}
+        <div style={{ flex:1, overflowY:"hidden", padding:"20px 40px" }}>
+          {queue.length === 0 ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", flexDirection:"column", gap:20 }}>
+              <div style={{ fontSize:"5rem" }}>🎵</div>
+              <div style={{ fontSize:"2rem", color:"rgba(255,255,255,0.3)", letterSpacing:3 }}>Queue is empty</div>
+              <div style={{ fontSize:"1.2rem", color:"rgba(255,255,255,0.2)" }}>Scan the QR code at your table to request a song</div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {queue.slice(0, 8).map((entry, i) => (
+                <div key={entry.fbKey} style={{
+                  display:"flex", alignItems:"center", gap:24,
+                  background: i === 0 ? "rgba(255,204,0,0.1)" : "rgba(255,255,255,0.03)",
+                  border: i === 0 ? "1px solid rgba(255,204,0,0.35)" : "1px solid rgba(255,255,255,0.07)",
+                  borderRadius:16, padding:"16px 24px",
+                  animation: `fadeRow 0.4s ease ${i * 0.08}s both`,
+                }}>
+                  {/* Position number */}
+                  <div style={{
+                    width:56, height:56, borderRadius:"50%", flexShrink:0,
+                    background: i === 0 ? "linear-gradient(135deg,#ffcc00,#ff8800)" : "rgba(255,255,255,0.08)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontWeight:"bold", fontSize: i === 0 ? "1.8rem" : "1.4rem",
+                    color: i === 0 ? "#000" : "rgba(255,255,255,0.5)",
+                  }}>{i + 1}</div>
+
+                  {/* Song info */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{
+                      fontWeight:"bold",
+                      fontSize: i === 0 ? "1.8rem" : "1.4rem",
+                      color: i === 0 ? "#ffcc00" : "#fff",
+                      overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                      marginBottom:4,
+                    }}>{entry.title}</div>
+                    <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.1rem" }}>
+                      🎤 {entry.singer}
+                    </div>
+                  </div>
+
+                  {/* Table badge */}
+                  <div style={{
+                    background: i === 0 ? "rgba(255,204,0,0.2)" : "rgba(255,0,255,0.1)",
+                    border: i === 0 ? "1px solid rgba(255,204,0,0.4)" : "1px solid rgba(255,0,255,0.25)",
+                    borderRadius:12, padding:"8px 20px", flexShrink:0, textAlign:"center",
+                  }}>
+                    <div style={{ color:"rgba(255,255,255,0.4)", fontSize:".8rem", letterSpacing:2 }}>TABLE</div>
+                    <div style={{ fontWeight:"bold", fontSize:"1.8rem", color: i === 0 ? "#ffcc00" : "#ff88ff" }}>{entry.table}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* BOTTOM TICKER */}
+        <div style={{ background:"rgba(255,0,255,0.08)", borderTop:"1px solid rgba(255,0,255,0.2)", padding:"12px 0", overflow:"hidden", flexShrink:0 }}>
+          <div style={{ display:"inline-block", animation:"marquee 25s linear infinite", whiteSpace:"nowrap", fontSize:"1.1rem", color:"rgba(255,255,255,0.4)", letterSpacing:2 }}>
+            &nbsp;&nbsp;&nbsp;🎤 Scan the QR code at your table to request a song &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; 🌀 HURRICANE KARAOKE NIGHT &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; 🎵 Request your favorite song and get ready to sing! &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isTVMode) {
     return (
