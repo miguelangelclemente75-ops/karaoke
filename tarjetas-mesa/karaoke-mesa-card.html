@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Karaoke Night — Tarjeta de Mesa</title>
+<title>Hurricane Karaoke — Table Card Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
@@ -36,7 +36,6 @@
     opacity: 0.5;
   }
 
-  /* ─── CONTROLS ─── */
   .controls {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -93,7 +92,6 @@
   }
   .btn-print:hover { background: rgba(255,255,255,0.15); }
 
-  /* ─── CARDS GRID ─── */
   .cards-grid {
     display: flex;
     flex-wrap: wrap;
@@ -103,7 +101,6 @@
     width: 100%;
   }
 
-  /* ─── CARD ─── */
   .mesa-card {
     width: 320px;
     background: var(--card-bg);
@@ -120,7 +117,6 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* top glow bar */
   .card-topbar {
     height: 6px;
     background: linear-gradient(90deg, var(--magenta), var(--cyan), var(--magenta));
@@ -132,7 +128,6 @@
     100% { background-position: 200% center; }
   }
 
-  /* header */
   .card-header {
     padding: 20px 24px 16px;
     text-align: center;
@@ -148,8 +143,8 @@
 
   .restaurant-name {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.5rem;
-    letter-spacing: 4px;
+    font-size: 1.8rem;
+    letter-spacing: 6px;
     background: linear-gradient(90deg, var(--magenta), var(--cyan));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -163,7 +158,6 @@
     text-transform: uppercase;
   }
 
-  /* mesa badge */
   .mesa-badge {
     margin: 18px auto 0;
     width: 64px;
@@ -191,7 +185,6 @@
     text-shadow: 0 0 20px rgba(255,215,0,0.5);
   }
 
-  /* body */
   .card-body { padding: 20px 24px; }
 
   .cta-text {
@@ -204,7 +197,6 @@
   }
   .cta-text strong { color: rgba(255,255,255,0.85); }
 
-  /* QR box */
   .qr-wrapper {
     background: white;
     border-radius: 16px;
@@ -218,18 +210,13 @@
   }
   .qr-wrapper canvas, .qr-wrapper img { display: block; border-radius: 6px; }
 
-  /* steps */
   .steps {
     display: flex;
     flex-direction: column;
     gap: 8px;
     margin-bottom: 18px;
   }
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .step { display: flex; align-items: center; gap: 10px; }
   .step-num {
     width: 22px;
     height: 22px;
@@ -249,7 +236,6 @@
   }
   .step-text strong { color: rgba(255,255,255,0.9); }
 
-  /* url display */
   .url-display {
     background: rgba(0,238,255,0.06);
     border: 1px solid rgba(0,238,255,0.2);
@@ -263,7 +249,6 @@
     margin-bottom: 16px;
   }
 
-  /* footer */
   .card-footer {
     padding: 14px 24px;
     border-top: 1px solid rgba(255,255,255,0.06);
@@ -278,7 +263,6 @@
   }
   .card-footer span { color: rgba(255,0,204,0.4); font-size: 0.9rem; }
 
-  /* decorative corner dots */
   .corner-dot {
     position: absolute;
     width: 80px;
@@ -290,7 +274,6 @@
   .corner-dot.tl { top: -20px; left: -20px; background: rgba(255,0,204,0.15); }
   .corner-dot.br { bottom: -20px; right: -20px; background: rgba(0,238,255,0.1); }
 
-  /* ─── PRINT ─── */
   @media print {
     body { background: white; padding: 10px; gap: 20px; }
     .controls, .page-title, .btn-print, h1 { display: none !important; }
@@ -308,37 +291,37 @@
 </head>
 <body>
 
-<h1 class="page-title">🎤 GENERADOR DE TARJETAS DE MESA</h1>
+<h1 class="page-title">🎤 TABLE CARD GENERATOR</h1>
 
 <div class="controls">
   <div class="control-group">
-    <label>Nombre del restaurante</label>
-    <input type="text" id="restaurantName" value="Karaoke Night" placeholder="Mi Restaurante">
+    <label>Restaurant Name</label>
+    <input type="text" id="restaurantName" value="Hurricane" placeholder="Restaurant Name">
   </div>
   <div class="control-group">
-    <label>URL de la app</label>
-    <input type="text" id="appUrl" value="https://mi-karaoke.vercel.app" placeholder="https://...">
+    <label>App URL</label>
+    <input type="text" id="appUrl" value="https://karaoke-coral-seven.vercel.app" placeholder="https://...">
   </div>
   <div class="control-group">
-    <label>Número de mesas</label>
+    <label>Number of Tables</label>
     <select id="tableCount">
-      <option value="4">4 mesas</option>
-      <option value="6">6 mesas</option>
-      <option value="8" selected>8 mesas</option>
-      <option value="10">10 mesas</option>
-      <option value="12">12 mesas</option>
+      <option value="4">4 tables</option>
+      <option value="6" selected>6 tables</option>
+      <option value="8">8 tables</option>
+      <option value="10">10 tables</option>
+      <option value="12">12 tables</option>
     </select>
   </div>
-  <button class="btn-generate" onclick="generateCards()">⚡ GENERAR</button>
-  <button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR</button>
+  <button class="btn-generate" onclick="generateCards()">⚡ GENERATE</button>
+  <button class="btn-print" onclick="window.print()">🖨️ PRINT</button>
 </div>
 
 <div class="cards-grid" id="cardsGrid"></div>
 
 <script>
 function generateCards() {
-  const name = document.getElementById('restaurantName').value || 'Karaoke Night';
-  const url = document.getElementById('appUrl').value || 'https://mi-karaoke.vercel.app';
+  const name = document.getElementById('restaurantName').value || 'Hurricane';
+  const url = document.getElementById('appUrl').value || 'https://karaoke-coral-seven.vercel.app';
   const count = parseInt(document.getElementById('tableCount').value);
   const grid = document.getElementById('cardsGrid');
   grid.innerHTML = '';
@@ -347,7 +330,6 @@ function generateCards() {
     const tableUrl = `${url}?mesa=${i}`;
     const card = createCard(name, tableUrl, i);
     grid.appendChild(card);
-    // Generate QR
     const qrDiv = card.querySelector('.qr-target');
     new QRCode(qrDiv, {
       text: tableUrl,
@@ -369,15 +351,15 @@ function createCard(restaurantName, tableUrl, tableNum) {
     <div class="card-topbar"></div>
     <div class="card-header">
       <div class="restaurant-name">${restaurantName}</div>
-      <div class="karaoke-label">Karaoke · Sistema de solicitudes</div>
+      <div class="karaoke-label">Karaoke · Song Request System</div>
       <div class="mesa-badge">
-        <span class="mesa-num-label">Mesa</span>
+        <span class="mesa-num-label">Table</span>
         <span class="mesa-num">${tableNum}</span>
       </div>
     </div>
     <div class="card-body">
       <p class="cta-text">
-        ¡<strong>Escanea el QR</strong> con tu celular<br>y pide tu canción favorita!
+        <strong>Scan the QR code</strong> with your phone<br>and request your favorite song!
       </p>
       <div class="qr-wrapper">
         <div class="qr-target"></div>
@@ -386,26 +368,25 @@ function createCard(restaurantName, tableUrl, tableNum) {
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
-          <div class="step-text"><strong>Escanea</strong> el código QR con tu cámara</div>
+          <div class="step-text"><strong>Scan</strong> the QR code with your camera</div>
         </div>
         <div class="step">
           <div class="step-num">2</div>
-          <div class="step-text"><strong>Escribe tu nombre</strong> y selecciona una canción</div>
+          <div class="step-text"><strong>Enter your name</strong> and pick a song</div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
-          <div class="step-text"><strong>¡Espera tu turno</strong> y sube al escenario! 🎤</div>
+          <div class="step-text"><strong>Wait for your turn</strong> and hit the stage! 🎤</div>
         </div>
       </div>
     </div>
     <div class="card-footer">
-      <span>♪</span> Powered by Karaoke Night System <span>♪</span>
+      <span>♪</span> Hurricane Karaoke Night <span>♪</span>
     </div>
   `;
   return div;
 }
 
-// Auto-generate on load
 window.onload = generateCards;
 </script>
 </body>
