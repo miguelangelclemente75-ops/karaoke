@@ -21,17 +21,25 @@ const YT_API_KEY = "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0";
 
 async function searchYT(query) {
   try {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${YT_API_KEY}`;
-    const res = await fetch(url);
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${YT_API_KEY}`;
+    const res = await fetch(searchUrl);
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.items || data.items.length === 0) return [];
-    return data.items.map(item => ({
-      id: item.id.videoId,
-      title: item.snippet.title,
-      author: item.snippet.channelTitle,
-      thumb: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-    }));
+    const ids = data.items.map(item => item.id.videoId).join(",");
+    const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${ids}&key=${YT_API_KEY}`;
+    const detailRes = await fetch(detailUrl);
+    if (!detailRes.ok) return null;
+    const detailData = await detailRes.json();
+    return detailData.items
+      .filter(item => item.status.embeddable)
+      .slice(0, 6)
+      .map(item => ({
+        id: item.id,
+        title: item.snippet.title,
+        author: item.snippet.channelTitle,
+        thumb: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+      }));
   } catch { return null; }
 }
 
