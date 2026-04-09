@@ -1,21 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 
 const SONGS = [
-  { id: 1, title: "Bohemian Rhapsody", artist: "Queen", genre: "Rock", duration: "5:55", emoji: "🎸" },
-  { id: 2, title: "My Way", artist: "Frank Sinatra", genre: "Clásicos", duration: "4:35", emoji: "🎩" },
-  { id: 3, title: "Despacito", artist: "Luis Fonsi", genre: "Reggaeton", duration: "3:47", emoji: "🌴" },
-  { id: 4, title: "Don't Stop Believin'", artist: "Journey", genre: "Rock", duration: "4:11", emoji: "🎵" },
-  { id: 5, title: "La Bamba", artist: "Ritchie Valens", genre: "Latino", duration: "2:10", emoji: "🎺" },
-  { id: 6, title: "Livin' on a Prayer", artist: "Bon Jovi", genre: "Rock", duration: "4:09", emoji: "🤘" },
-  { id: 7, title: "Shape of You", artist: "Ed Sheeran", genre: "Pop", duration: "3:54", emoji: "🎤" },
-  { id: 8, title: "Cielito Lindo", artist: "Tradicional", genre: "Latino", duration: "2:45", emoji: "🌹" },
-  { id: 9, title: "Wonderwall", artist: "Oasis", genre: "Rock", duration: "4:18", emoji: "🎸" },
-  { id: 10, title: "Bad Guy", artist: "Billie Eilish", genre: "Pop", duration: "3:14", emoji: "😈" },
-  { id: 11, title: "Tití Me Preguntó", artist: "Bad Bunny", genre: "Reggaeton", duration: "4:03", emoji: "🐰" },
-  { id: 12, title: "Thriller", artist: "Michael Jackson", genre: "Pop", duration: "5:57", emoji: "👻" },
-  { id: 13, title: "Sweet Caroline", artist: "Neil Diamond", genre: "Clásicos", duration: "3:23", emoji: "🌸" },
-  { id: 14, title: "Gasolina", artist: "Daddy Yankee", genre: "Reggaeton", duration: "3:38", emoji: "🔥" },
-  { id: 15, title: "Africa", artist: "Toto", genre: "Rock", duration: "4:55", emoji: "🌍" },
+  { id: 1,  title: "Bohemian Rhapsody",    artist: "Queen",           genre: "Rock",     duration: "5:55", emoji: "🎸", youtubeSearch: "Bohemian Rhapsody karaoke with lyrics" },
+  { id: 2,  title: "My Way",               artist: "Frank Sinatra",   genre: "Clásicos", duration: "4:35", emoji: "🎩", youtubeSearch: "My Way Frank Sinatra karaoke with lyrics" },
+  { id: 3,  title: "Despacito",            artist: "Luis Fonsi",      genre: "Reggaeton",duration: "3:47", emoji: "🌴", youtubeSearch: "Despacito karaoke con letra" },
+  { id: 4,  title: "Don't Stop Believin'", artist: "Journey",         genre: "Rock",     duration: "4:11", emoji: "🎵", youtubeSearch: "Don't Stop Believin Journey karaoke with lyrics" },
+  { id: 5,  title: "La Bamba",             artist: "Ritchie Valens",  genre: "Latino",   duration: "2:10", emoji: "🎺", youtubeSearch: "La Bamba karaoke con letra" },
+  { id: 6,  title: "Livin' on a Prayer",   artist: "Bon Jovi",        genre: "Rock",     duration: "4:09", emoji: "🤘", youtubeSearch: "Livin on a Prayer Bon Jovi karaoke with lyrics" },
+  { id: 7,  title: "Shape of You",         artist: "Ed Sheeran",      genre: "Pop",      duration: "3:54", emoji: "🎤", youtubeSearch: "Shape of You Ed Sheeran karaoke with lyrics" },
+  { id: 8,  title: "Cielito Lindo",        artist: "Tradicional",     genre: "Latino",   duration: "2:45", emoji: "🌹", youtubeSearch: "Cielito Lindo karaoke con letra" },
+  { id: 9,  title: "Wonderwall",           artist: "Oasis",           genre: "Rock",     duration: "4:18", emoji: "🎸", youtubeSearch: "Wonderwall Oasis karaoke with lyrics" },
+  { id: 10, title: "Bad Guy",              artist: "Billie Eilish",   genre: "Pop",      duration: "3:14", emoji: "😈", youtubeSearch: "Bad Guy Billie Eilish karaoke with lyrics" },
+  { id: 11, title: "Tití Me Preguntó",     artist: "Bad Bunny",       genre: "Reggaeton",duration: "4:03", emoji: "🐰", youtubeSearch: "Titi Me Pregunto Bad Bunny karaoke con letra" },
+  { id: 12, title: "Thriller",             artist: "Michael Jackson", genre: "Pop",      duration: "5:57", emoji: "👻", youtubeSearch: "Thriller Michael Jackson karaoke with lyrics" },
+  { id: 13, title: "Sweet Caroline",       artist: "Neil Diamond",    genre: "Clásicos", duration: "3:23", emoji: "🌸", youtubeSearch: "Sweet Caroline Neil Diamond karaoke with lyrics" },
+  { id: 14, title: "Gasolina",             artist: "Daddy Yankee",    genre: "Reggaeton",duration: "3:38", emoji: "🔥", youtubeSearch: "Gasolina Daddy Yankee karaoke con letra" },
+  { id: 15, title: "Africa",               artist: "Toto",            genre: "Rock",     duration: "4:55", emoji: "🌍", youtubeSearch: "Africa Toto karaoke with lyrics" },
 ];
 
 const GENRES = ["Todos", "Rock", "Pop", "Reggaeton", "Latino", "Clásicos"];
@@ -33,31 +33,20 @@ export default function KaraokeApp() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingSong, setPendingSong] = useState(null);
   const [toast, setToast] = useState(null);
-  const [score, setScore] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [adminView, setAdminView] = useState("queue");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminInput, setAdminInput] = useState("");
   const [adminError, setAdminError] = useState(false);
-  const timerRef = useRef(null);
+  const [youtubeResults, setYoutubeResults] = useState([]);
+  const [searchingYT, setSearchingYT] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState(null);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [ytSearchInput, setYtSearchInput] = useState("");
 
   const notes = Array.from({ length: 8 }, (_, i) => ({
     left: `${10 + i * 12}%`, animationDelay: `${i * 0.7}s`,
     fontSize: `${1 + (i % 3) * 0.5}rem`, opacity: 0.15 + (i % 3) * 0.1,
   }));
-
-  useEffect(() => {
-    if (isPlaying) {
-      timerRef.current = setInterval(() => {
-        setProgress(p => {
-          if (p >= 100) { clearInterval(timerRef.current); setIsPlaying(false); setScore(Math.floor(70 + Math.random() * 30)); return 100; }
-          return p + 0.5;
-        });
-      }, 150);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [isPlaying]);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -84,43 +73,110 @@ export default function KaraokeApp() {
     setShowConfirm(false); setPendingSong(null);
   };
 
-  const startSong = (entry) => {
-    setCurrentSong(entry); setQueue(q => q.filter(i => i.id !== entry.id));
-    setProgress(0); setScore(null); setIsPlaying(true); setAdminView("now");
+  const removeFromQueue = (id) => { setQueue(q => q.filter(i => i.id !== id)); showToast("Canción removida", "error"); };
+
+  // Search YouTube via oembed / invidious proxy
+  const searchYouTube = async (query) => {
+    setSearchingYT(true);
+    setYoutubeResults([]);
+    try {
+      const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video&fields=videoId,title,author,lengthSeconds`);
+      const data = await res.json();
+      const videos = (data || []).slice(0, 6).map(v => ({
+        id: v.videoId,
+        title: v.title,
+        author: v.author,
+        duration: formatDuration(v.lengthSeconds),
+        thumb: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
+      }));
+      setYoutubeResults(videos);
+    } catch(e) {
+      // fallback: open YouTube search in new tab
+      showToast("Abriendo búsqueda en YouTube...", "success");
+      window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank");
+    }
+    setSearchingYT(false);
   };
 
-  const removeFromQueue = (id) => { setQueue(q => q.filter(i => i.id !== id)); showToast("Canción removida", "error"); };
+  const formatDuration = (secs) => {
+    if (!secs) return "--:--";
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2,"0")}`;
+  };
+
+  const startSong = (entry) => {
+    setCurrentSong(entry);
+    setQueue(q => q.filter(i => i.id !== entry.id));
+    setSelectedVideoId(null);
+    setYoutubeResults([]);
+    setShowPlayer(false);
+    setAdminView("now");
+    setYtSearchInput(entry.youtubeSearch || `${entry.title} ${entry.artist} karaoke`);
+    // auto search
+    searchYouTube(entry.youtubeSearch || `${entry.title} ${entry.artist} karaoke`);
+  };
+
+  const playVideo = (videoId) => {
+    setSelectedVideoId(videoId);
+    setShowPlayer(true);
+  };
+
+  const stopVideo = () => {
+    setSelectedVideoId(null);
+    setShowPlayer(false);
+  };
 
   return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a0015 0%,#1a0030 40%,#0d001a 100%)", fontFamily:"'Georgia',serif", color:"#fff", position:"relative", overflow:"hidden" }}>
       <style>{`
         @keyframes floatNote{0%{transform:translateY(100vh) rotate(0deg);opacity:0}10%{opacity:0.2}90%{opacity:0.1}100%{transform:translateY(-100px) rotate(360deg);opacity:0}}
-        @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
         @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
         @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
         @keyframes toastIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes spin{to{transform:rotate(360deg)}}
         .floating-note{position:fixed;color:#ff00ff;animation:floatNote 8s linear infinite;pointer-events:none;z-index:0}
         .song-card:hover{transform:translateY(-3px);border-color:#ff00ff!important;background:rgba(255,0,255,0.15)!important}
         .song-card{transition:all 0.2s ease;cursor:pointer}
+        .video-card:hover{border-color:#ff00ff!important;background:rgba(255,0,255,0.1)!important;transform:translateY(-2px)}
+        .video-card{transition:all 0.2s ease;cursor:pointer}
         .btn-primary{background:linear-gradient(135deg,#ff00ff,#9900ff);border:none;color:white;padding:12px 28px;border-radius:50px;font-size:1rem;cursor:pointer;font-family:Georgia,serif;font-weight:bold;letter-spacing:1px;transition:all 0.2s}
         .btn-primary:hover{transform:scale(1.05);box-shadow:0 0 20px rgba(255,0,255,0.5)}
+        .btn-green{background:linear-gradient(135deg,#00cc66,#009944);border:none;color:white;padding:10px 20px;border-radius:50px;font-size:0.9rem;cursor:pointer;font-family:Georgia,serif;font-weight:bold;transition:all 0.2s}
+        .btn-green:hover{transform:scale(1.05);box-shadow:0 0 15px rgba(0,200,100,0.4)}
         .tab-btn{background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:8px 20px;border-radius:50px;cursor:pointer;font-family:Georgia,serif;transition:all 0.2s}
         .tab-btn.active{background:linear-gradient(135deg,#ff00ff,#9900ff);color:white;border-color:transparent}
         .genre-chip{padding:6px 16px;border-radius:50px;border:1px solid rgba(255,0,255,0.4);background:transparent;color:rgba(255,255,255,0.7);cursor:pointer;font-family:Georgia,serif;font-size:0.85rem;transition:all 0.2s}
         .genre-chip.active{background:rgba(255,0,255,0.3);color:#ff88ff;border-color:#ff00ff}
-        .progress-bar{height:8px;background:rgba(255,255,255,0.1);border-radius:10px;overflow:hidden}
-        .progress-fill{height:100%;background:linear-gradient(90deg,#ff00ff,#00ffff);border-radius:10px;transition:width 0.15s linear;box-shadow:0 0 10px rgba(255,0,255,0.5)}
         .input-field{background:rgba(255,255,255,0.05);border:1px solid rgba(255,0,255,0.3);color:white;padding:10px 16px;border-radius:12px;font-family:Georgia,serif;font-size:1rem;outline:none;width:100%;box-sizing:border-box}
         .input-field:focus{border-color:#ff00ff;box-shadow:0 0 10px rgba(255,0,255,0.2)}
         .input-field::placeholder{color:rgba(255,255,255,0.3)}
         .card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;animation:slideIn 0.3s ease}
         .glow-text{background:linear-gradient(90deg,#ff00ff,#00ffff,#ff00ff);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s linear infinite}
-        .score-circle{width:100px;height:100px;border-radius:50%;border:4px solid #ff00ff;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:2rem;font-weight:bold;box-shadow:0 0 30px rgba(255,0,255,0.4);animation:pulse 1s ease infinite}
+        .spinner{width:32px;height:32px;border:3px solid rgba(255,0,255,0.2);border-top-color:#ff00ff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto}
+        .yt-iframe-wrap{position:relative;width:100%;padding-bottom:56.25%;border-radius:16px;overflow:hidden;background:#000}
+        .yt-iframe-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}
       `}</style>
 
       {notes.map((n,i) => <div key={i} className="floating-note" style={{left:n.left,animationDelay:n.animationDelay,fontSize:n.fontSize,opacity:n.opacity}}>♪</div>)}
 
       {toast && <div style={{position:"fixed",top:20,right:20,zIndex:1000,background:toast.type==="error"?"rgba(255,50,50,0.9)":"rgba(50,200,100,0.9)",padding:"12px 24px",borderRadius:16,fontWeight:"bold",animation:"toastIn 0.3s ease"}}>{toast.msg}</div>}
+
+      {/* FULLSCREEN PLAYER */}
+      {showPlayer && selectedVideoId && (
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:2000,display:"flex",flexDirection:"column"}}>
+          <div style={{position:"absolute",top:16,right:16,zIndex:2001,display:"flex",gap:10}}>
+            <button onClick={stopVideo} style={{background:"rgba(255,50,50,0.9)",border:"none",color:"white",padding:"10px 20px",borderRadius:50,cursor:"pointer",fontFamily:"Georgia",fontWeight:"bold",fontSize:"1rem"}}>✕ Cerrar</button>
+          </div>
+          <iframe
+            style={{width:"100%",height:"100%",border:"none"}}
+            src={`https://www.youtube.com/embed/${selectedVideoId}?autoplay=1&rel=0&modestbranding=1`}
+            allow="autoplay; fullscreen"
+            allowFullScreen
+            title="Karaoke Player"
+          />
+        </div>
+      )}
 
       {showConfirm && pendingSong && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}}>
@@ -259,14 +315,19 @@ export default function KaraokeApp() {
           <div style={{animation:"slideIn 0.3s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <h2 style={{margin:0,color:"#ff88ff"}}>🎛️ Panel del DJ</h2>
-              <button onClick={() => { setAdminUnlocked(false); setView("home"); }} style={{background:"rgba(255,50,50,0.2)",border:"1px solid rgba(255,50,50,0.4)",color:"#ff8888",padding:"6px 14px",borderRadius:20,cursor:"pointer",fontFamily:"Georgia",fontSize:"0.8rem"}}>🔒 Cerrar sesión</button>
+              <button onClick={() => { setAdminUnlocked(false); setView("home"); }} style={{background:"rgba(255,50,50,0.2)",border:"1px solid rgba(255,50,50,0.4)",color:"#ff8888",padding:"6px 14px",borderRadius:20,cursor:"pointer",fontFamily:"Georgia",fontSize:"0.8rem"}}>🔒 Salir</button>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:20}}>
-              {["queue","now"].map(v => <button key={v} className={`tab-btn ${adminView===v?"active":""}`} onClick={() => setAdminView(v)}>{v==="queue"?`📋 Cola (${queue.length})`:"🎤 En vivo"}</button>)}
+              {["queue","now"].map(v => <button key={v} className={`tab-btn ${adminView===v?"active":""}`} onClick={() => setAdminView(v)}>{v==="queue"?`📋 Cola (${queue.length})`:"🎬 YouTube"}</button>)}
             </div>
 
+            {/* QUEUE TAB */}
             {adminView==="queue" && (
-              queue.length===0 ? <div className="card" style={{textAlign:"center",padding:40}}><p style={{color:"rgba(255,255,255,0.5)"}}>Cola vacía</p></div> :
+              queue.length===0 ?
+              <div className="card" style={{textAlign:"center",padding:40}}>
+                <div style={{fontSize:"3rem",marginBottom:12}}>🎵</div>
+                <p style={{color:"rgba(255,255,255,0.5)"}}>Cola vacía — esperando solicitudes</p>
+              </div> :
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {queue.map((entry,i) => (
                   <div key={entry.id} className="card" style={{padding:"16px 20px"}}>
@@ -277,7 +338,7 @@ export default function KaraokeApp() {
                         <div style={{color:"rgba(255,255,255,0.5)",fontSize:"0.8rem"}}>🎤 {entry.singer} · Mesa {entry.table} · {entry.duration}</div>
                       </div>
                       <div style={{display:"flex",gap:8}}>
-                        {i===0 && <button className="btn-primary" style={{padding:"8px 16px",fontSize:"0.85rem"}} onClick={() => startSong(entry)}>▶ Play</button>}
+                        {i===0 && <button className="btn-green" onClick={() => startSong(entry)}>▶ Play + YouTube</button>}
                         <button onClick={() => removeFromQueue(entry.id)} style={{background:"rgba(255,50,50,0.2)",border:"1px solid rgba(255,50,50,0.4)",color:"#ff8888",padding:"8px 14px",borderRadius:20,cursor:"pointer",fontFamily:"Georgia"}}>✕</button>
                       </div>
                     </div>
@@ -286,40 +347,93 @@ export default function KaraokeApp() {
               </div>
             )}
 
+            {/* YOUTUBE TAB */}
             {adminView==="now" && (
-              !currentSong ? (
-                <div className="card" style={{textAlign:"center",padding:40}}>
-                  <div style={{fontSize:"3rem",marginBottom:12}}>🎙️</div>
-                  <p style={{color:"rgba(255,255,255,0.5)"}}>Ninguna canción en reproducción</p>
-                </div>
-              ) : (
-                <div className="card" style={{textAlign:"center"}}>
-                  <div style={{fontSize:"4rem",marginBottom:12}}>{currentSong.emoji}</div>
-                  <h2 style={{margin:"0 0 4px",fontSize:"1.4rem"}}>{currentSong.title}</h2>
-                  <p style={{color:"rgba(255,255,255,0.5)",margin:"0 0 4px"}}>{currentSong.artist}</p>
-                  <p style={{color:"#ff88ff",margin:"0 0 20px",fontSize:"0.9rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</p>
-                  <div className="progress-bar" style={{marginBottom:8}}>
-                    <div className="progress-fill" style={{width:`${progress}%`}} />
+              <div>
+                {!currentSong ? (
+                  <div className="card" style={{textAlign:"center",padding:40}}>
+                    <div style={{fontSize:"3rem",marginBottom:12}}>🎬</div>
+                    <p style={{color:"rgba(255,255,255,0.5)"}}>Dale ▶ Play a una canción de la cola primero</p>
                   </div>
-                  <p style={{color:"rgba(255,255,255,0.4)",fontSize:"0.8rem",margin:"0 0 20px"}}>
-                    {isPlaying?"🎶 Reproduciendo...":progress>=100?"✅ Finalizada":"⏸ Pausada"}
-                  </p>
-                  {score!==null && (
-                    <div style={{animation:"slideIn 0.5s ease"}}>
-                      <p style={{color:"#ff88ff",fontWeight:"bold",marginBottom:12}}>🏆 Puntuación final</p>
-                      <div className="score-circle">{score}</div>
-                      <p style={{marginTop:12,color:score>=90?"#00ff88":score>=75?"#ffcc00":"#ff8888"}}>
-                        {score>=90?"⭐ ¡Increíble!":score>=75?"👏 ¡Muy bien!":"🎤 ¡Sigue practicando!"}
-                      </p>
-                      {queue.length>0 && <button className="btn-primary" style={{marginTop:16}} onClick={() => startSong(queue[0])}>▶ Siguiente canción</button>}
+                ) : (
+                  <div>
+                    {/* Now playing banner */}
+                    <div className="card" style={{marginBottom:16,background:"rgba(0,200,100,0.08)",borderColor:"rgba(0,200,100,0.3)"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <span style={{fontSize:"2rem"}}>{currentSong.emoji}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:"bold",fontSize:"1.1rem"}}>{currentSong.title}</div>
+                          <div style={{color:"rgba(255,255,255,0.5)",fontSize:"0.85rem"}}>🎤 {currentSong.singer} · Mesa {currentSong.table}</div>
+                        </div>
+                        {showPlayer && <span style={{fontSize:"0.75rem",background:"rgba(255,0,0,0.3)",border:"1px solid rgba(255,0,0,0.5)",borderRadius:20,padding:"3px 12px",color:"#ff8888"}}>● EN VIVO</span>}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )
+
+                    {/* Video player */}
+                    {showPlayer && selectedVideoId && (
+                      <div style={{marginBottom:16}}>
+                        <div className="yt-iframe-wrap">
+                          <iframe
+                            src={`https://www.youtube.com/embed/${selectedVideoId}?autoplay=1&rel=0&modestbranding=1`}
+                            allow="autoplay; fullscreen"
+                            allowFullScreen
+                            title="Karaoke"
+                          />
+                        </div>
+                        <div style={{display:"flex",gap:10,marginTop:10,justifyContent:"center"}}>
+                          <button onClick={stopVideo} style={{background:"rgba(255,50,50,0.2)",border:"1px solid rgba(255,50,50,0.4)",color:"#ff8888",padding:"8px 20px",borderRadius:20,cursor:"pointer",fontFamily:"Georgia"}}>⏹ Detener</button>
+                          <button onClick={() => { stopVideo(); setAdminView("queue"); }} style={{background:"rgba(255,200,0,0.15)",border:"1px solid rgba(255,200,0,0.3)",color:"#ffcc00",padding:"8px 20px",borderRadius:20,cursor:"pointer",fontFamily:"Georgia"}}>⏭ Siguiente</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* YouTube search */}
+                    <div className="card" style={{marginBottom:16}}>
+                      <p style={{margin:"0 0 10px",color:"#ff88ff",fontWeight:"bold",fontSize:"0.9rem"}}>🔍 Buscar karaoke en YouTube</p>
+                      <div style={{display:"flex",gap:8}}>
+                        <input className="input-field" placeholder="Buscar..." value={ytSearchInput}
+                          onChange={e => setYtSearchInput(e.target.value)}
+                          onKeyDown={e => e.key==="Enter" && searchYouTube(ytSearchInput)}
+                          style={{flex:1}} />
+                        <button className="btn-primary" style={{padding:"10px 18px",fontSize:"0.85rem",whiteSpace:"nowrap"}}
+                          onClick={() => searchYouTube(ytSearchInput)}>🔍</button>
+                      </div>
+                    </div>
+
+                    {/* Searching spinner */}
+                    {searchingYT && (
+                      <div style={{textAlign:"center",padding:30}}>
+                        <div className="spinner" />
+                        <p style={{color:"rgba(255,255,255,0.5)",marginTop:12,fontSize:"0.85rem"}}>Buscando en YouTube...</p>
+                      </div>
+                    )}
+
+                    {/* Video results */}
+                    {!searchingYT && youtubeResults.length > 0 && (
+                      <div>
+                        <p style={{color:"rgba(255,255,255,0.4)",fontSize:"0.8rem",marginBottom:10}}>Selecciona el video correcto:</p>
+                        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                          {youtubeResults.map(v => (
+                            <div key={v.id} className="video-card card" style={{padding:"12px 16px",borderColor:"rgba(255,255,255,0.08)"}} onClick={() => playVideo(v.id)}>
+                              <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                                <img src={v.thumb} alt="" style={{width:80,height:45,borderRadius:8,objectFit:"cover",flexShrink:0}} />
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontWeight:"bold",fontSize:"0.85rem",lineHeight:1.3,marginBottom:4}}>{v.title}</div>
+                                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:"0.75rem"}}>{v.author} · {v.duration}</div>
+                                </div>
+                                <button className="btn-green" style={{padding:"6px 14px",fontSize:"0.8rem",whiteSpace:"nowrap"}}>▶ Play</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
-
       </div>
     </div>
   );
