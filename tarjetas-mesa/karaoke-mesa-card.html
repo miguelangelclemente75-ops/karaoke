@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Karaoke Night — Tarjeta de Mesa</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --magenta: #ff00cc;
+    --cyan: #00eeff;
+    --gold: #ffd700;
+    --dark: #0a0015;
+    --card-bg: #120025;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    font-family: 'Lato', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+    gap: 40px;
+  }
+
+  h1.page-title {
+    color: white;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 4px;
+    opacity: 0.5;
+  }
+
+  /* ─── CONTROLS ─── */
+  .controls {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 24px 32px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+    max-width: 800px;
+    width: 100%;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px; }
+  .control-group label { color: rgba(255,255,255,0.5); font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; }
+  .control-group input, .control-group select {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,0,204,0.3);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-family: 'Lato', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .control-group input:focus, .control-group select:focus { border-color: var(--magenta); }
+  .control-group select option { background: #1a1a2e; }
+
+  .btn-generate {
+    background: linear-gradient(135deg, var(--magenta), #7700cc);
+    border: none;
+    color: white;
+    padding: 12px 28px;
+    border-radius: 50px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-generate:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,0,204,0.5); }
+
+  .btn-print {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-print:hover { background: rgba(255,255,255,0.15); }
+
+  /* ─── CARDS GRID ─── */
+  .cards-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  /* ─── CARD ─── */
+  .mesa-card {
+    width: 320px;
+    background: var(--card-bg);
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255,0,204,0.25);
+    box-shadow: 0 0 40px rgba(255,0,204,0.1), 0 20px 60px rgba(0,0,0,0.5);
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* top glow bar */
+  .card-topbar {
+    height: 6px;
+    background: linear-gradient(90deg, var(--magenta), var(--cyan), var(--magenta));
+    background-size: 200% auto;
+    animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+
+  /* header */
+  .card-header {
+    padding: 20px 24px 16px;
+    text-align: center;
+    position: relative;
+  }
+  .card-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 24px; right: 24px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,0,204,0.3), transparent);
+  }
+
+  .restaurant-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, var(--magenta), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 2px;
+  }
+
+  .karaoke-label {
+    font-size: 0.65rem;
+    letter-spacing: 5px;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+  }
+
+  /* mesa badge */
+  .mesa-badge {
+    margin: 18px auto 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(255,0,204,0.2), rgba(0,238,255,0.1));
+    border: 1.5px solid rgba(255,0,204,0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+  .mesa-num-label {
+    font-size: 0.55rem;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+  }
+  .mesa-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(255,215,0,0.5);
+  }
+
+  /* body */
+  .card-body { padding: 20px 24px; }
+
+  .cta-text {
+    text-align: center;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .cta-text strong { color: rgba(255,255,255,0.85); }
+
+  /* QR box */
+  .qr-wrapper {
+    background: white;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    width: fit-content;
+    box-shadow: 0 0 30px rgba(255,0,204,0.2);
+  }
+  .qr-wrapper canvas, .qr-wrapper img { display: block; border-radius: 6px; }
+
+  /* steps */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--magenta), #7700cc);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-text {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.3;
+  }
+  .step-text strong { color: rgba(255,255,255,0.9); }
+
+  /* url display */
+  .url-display {
+    background: rgba(0,238,255,0.06);
+    border: 1px solid rgba(0,238,255,0.2);
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+    word-break: break-all;
+    margin-bottom: 16px;
+  }
+
+  /* footer */
+  .card-footer {
+    padding: 14px 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    text-align: center;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .card-footer span { color: rgba(255,0,204,0.4); font-size: 0.9rem; }
+
+  /* decorative corner dots */
+  .corner-dot {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    filter: blur(30px);
+    pointer-events: none;
+  }
+  .corner-dot.tl { top: -20px; left: -20px; background: rgba(255,0,204,0.15); }
+  .corner-dot.br { bottom: -20px; right: -20px; background: rgba(0,238,255,0.1); }
+
+  /* ─── PRINT ─── */
+  @media print {
+    body { background: white; padding: 10px; gap: 20px; }
+    .controls, .page-title, .btn-print, h1 { display: none !important; }
+    .cards-grid { gap: 15px; }
+    .mesa-card {
+      border: 2px solid #cc00aa;
+      box-shadow: none;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .card-topbar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .restaurant-name, .mesa-num, .step-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">🎤 GENERADOR DE TARJETAS DE MESA</h1>
+
+<div class="controls">
+  <div class="control-group">
+    <label>Nombre del restaurante</label>
+    <input type="text" id="restaurantName" value="Karaoke Night" placeholder="Mi Restaurante">
+  </div>
+  <div class="control-group">
+    <label>URL de la app</label>
+    <input type="text" id="appUrl" value="https://mi-karaoke.vercel.app" placeholder="https://...">
+  </div>
+  <div class="control-group">
+    <label>Número de mesas</label>
+    <select id="tableCount">
+      <option value="4">4 mesas</option>
+      <option value="6">6 mesas</option>
+      <option value="8" selected>8 mesas</option>
+      <option value="10">10 mesas</option>
+      <option value="12">12 mesas</option>
+    </select>
+  </div>
+  <button class="btn-generate" onclick="generateCards()">⚡ GENERAR</button>
+  <button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR</button>
+</div>
+
+<div class="cards-grid" id="cardsGrid"></div>
+
+<script>
+function generateCards() {
+  const name = document.getElementById('restaurantName').value || 'Karaoke Night';
+  const url = document.getElementById('appUrl').value || 'https://mi-karaoke.vercel.app';
+  const count = parseInt(document.getElementById('tableCount').value);
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = '';
+
+  for (let i = 1; i <= count; i++) {
+    const tableUrl = `${url}?mesa=${i}`;
+    const card = createCard(name, tableUrl, i);
+    grid.appendChild(card);
+    // Generate QR
+    const qrDiv = card.querySelector('.qr-target');
+    new QRCode(qrDiv, {
+      text: tableUrl,
+      width: 150,
+      height: 150,
+      colorDark: "#1a0030",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H,
+    });
+  }
+}
+
+function createCard(restaurantName, tableUrl, tableNum) {
+  const div = document.createElement('div');
+  div.className = 'mesa-card';
+  div.innerHTML = `
+    <div class="corner-dot tl"></div>
+    <div class="corner-dot br"></div>
+    <div class="card-topbar"></div>
+    <div class="card-header">
+      <div class="restaurant-name">${restaurantName}</div>
+      <div class="karaoke-label">Karaoke · Sistema de solicitudes</div>
+      <div class="mesa-badge">
+        <span class="mesa-num-label">Mesa</span>
+        <span class="mesa-num">${tableNum}</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="cta-text">
+        ¡<strong>Escanea el QR</strong> con tu celular<br>y pide tu canción favorita!
+      </p>
+      <div class="qr-wrapper">
+        <div class="qr-target"></div>
+      </div>
+      <div class="url-display">${tableUrl}</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-text"><strong>Escanea</strong> el código QR con tu cámara</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-text"><strong>Escribe tu nombre</strong> y selecciona una canción</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-text"><strong>¡Espera tu turno</strong> y sube al escenario! 🎤</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <span>♪</span> Powered by Karaoke Night System <span>♪</span>
+    </div>
+  `;
+  return div;
+}
+
+// Auto-generate on load
+window.onload = generateCards;
+</script>
+</body>
+</html>
