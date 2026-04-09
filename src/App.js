@@ -208,7 +208,7 @@ export default function App() {
               HURRICANE
             </h1>
             <h2 style={{ fontSize:"1.6rem", color:"rgba(255,255,255,0.55)", marginBottom:30, letterSpacing:8, fontWeight:"normal" }}>
-              KARAOKE NIGHT
+              🎤 KARAOKE NIGHT 🎤
             </h2>
             <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"1.1rem", marginBottom:30 }}>
               Scan the QR code at your table to request a song
