@@ -229,7 +229,7 @@ function TVPlayer({ song, nextSong }) {
       <iframe
         key={key}
         style={{ width:"100%", height:"100%", border:"none", opacity: loaded ? 1 : 0, transition:"opacity 0.5s ease" }}
-        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&rel=0&modestbranding=1`}
+        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&rel=0&modestbranding=1&vq=medium`}
         allow="autoplay; fullscreen"
         allowFullScreen
         title="Karaoke"
