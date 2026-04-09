@@ -14,13 +14,13 @@ import {
 // FIREBASE
 // ==============================
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: "AIzaSyCCp5XcNOw6Kbs_wv5Mg2LojV8BY2rTrbI",
+  authDomain: "karaoke-app-1e2ce.firebaseapp.com",
+  databaseURL: "https://karaoke-app-1e2ce-default-rtdb.firebaseio.com",
+  projectId: "karaoke-app-1e2ce",
+  storageBucket: "karaoke-app-1e2ce.firebasestorage.app",
+  messagingSenderId: "404006629002",
+  appId: "1:404006629002:web:dd4ec169ad20b473798773",
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -29,8 +29,8 @@ const db = getDatabase(firebaseApp);
 // ==============================
 // CONFIG
 // ==============================
-const YT_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY || "";
-const ADMIN_PASSWORD = import.meta.env.VITE_KARAOKE_ADMIN_PASSWORD || "";
+const YT_API_KEY = "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0";
+const ADMIN_PASSWORD = "karaoke2024";
 const TABLES = [1, 2, 3, 4, 5, 6];
 
 // ==============================
@@ -426,12 +426,6 @@ export default function App() {
   };
 
   const loginAdmin = () => {
-    if (!ADMIN_PASSWORD) {
-      setAdminErr(true);
-      toast$("Missing admin password in environment", "err");
-      return;
-    }
-
     if (adminPwd === ADMIN_PASSWORD) {
       setAdminOk(true);
       setAdminErr(false);
