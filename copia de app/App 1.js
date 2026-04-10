@@ -29,13 +29,7 @@ const db = getDatabase(firebaseApp);
 // ==============================
 // CONFIG
 // ==============================
-const YT_API_KEYS = [
-  "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0",
-  "AIzaSyBDWAwcmx9Joj-P4LQFyHtfcPl29YkeJwA",
-];
-let currentKeyIndex = 0;
-function getYTKey() { return YT_API_KEYS[currentKeyIndex]; }
-function rotateYTKey() { currentKeyIndex = (currentKeyIndex + 1) % YT_API_KEYS.length; }
+const YT_API_KEY = "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0";
 const ADMIN_PASSWORD = "karaoke2024";
 const TABLES = [1, 2, 3, 4, 5, 6];
 
@@ -99,63 +93,43 @@ function getRuntimeParams() {
 }
 
 async function searchYT(query) {
-  let lastError = null;
+  if (!YT_API_KEY) throw new Error("Missing YouTube API key");
 
-  for (let attempt = 0; attempt < YT_API_KEYS.length; attempt++) {
-    const key = getYTKey();
-    try {
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
-        query
-      )}&type=video&maxResults=10&key=${key}`;
+  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
+    query
+  )}&type=video&maxResults=10&key=${YT_API_KEY}`;
 
-      const res = await fetch(searchUrl);
-      if (!res.ok) {
-        rotateYTKey();
-        continue;
-      }
+  const res = await fetch(searchUrl);
+  if (!res.ok) throw new Error("YouTube search failed");
 
-      const data = await res.json();
+  const data = await res.json();
+  if (!Array.isArray(data.items) || data.items.length === 0) return [];
 
-      // Quota exceeded — try next key
-      if (data.error?.code === 403) {
-        rotateYTKey();
-        continue;
-      }
+  const ids = data.items
+    .map((item) => item?.id?.videoId)
+    .filter(Boolean)
+    .join(",");
 
-      if (!Array.isArray(data.items) || data.items.length === 0) return [];
+  if (!ids) return [];
 
-      const ids = data.items
-        .map((item) => item?.id?.videoId)
-        .filter(Boolean)
-        .join(",");
+  const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${ids}&key=${YT_API_KEY}`;
+  const detailRes = await fetch(detailUrl);
+  if (!detailRes.ok) throw new Error("YouTube details failed");
 
-      if (!ids) return [];
+  const detailData = await detailRes.json();
 
-      const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${ids}&key=${key}`;
-      const detailRes = await fetch(detailUrl);
-      if (!detailRes.ok) throw new Error("YouTube details failed");
-
-      const detailData = await detailRes.json();
-
-      return (detailData.items || [])
-        .filter((item) => item?.status?.embeddable && item?.id)
-        .slice(0, 6)
-        .map((item) => ({
-          id: item.id,
-          title: item?.snippet?.title || "Untitled",
-          author: item?.snippet?.channelTitle || "Unknown channel",
-          thumb:
-            item?.snippet?.thumbnails?.medium?.url ||
-            item?.snippet?.thumbnails?.default?.url ||
-            "",
-        }));
-    } catch (err) {
-      lastError = err;
-      rotateYTKey();
-    }
-  }
-
-  throw lastError || new Error("All YouTube API keys exhausted");
+  return (detailData.items || [])
+    .filter((item) => item?.status?.embeddable && item?.id)
+    .slice(0, 6)
+    .map((item) => ({
+      id: item.id,
+      title: item?.snippet?.title || "Untitled",
+      author: item?.snippet?.channelTitle || "Unknown channel",
+      thumb:
+        item?.snippet?.thumbnails?.medium?.url ||
+        item?.snippet?.thumbnails?.default?.url ||
+        "",
+    }));
 }
 
 
