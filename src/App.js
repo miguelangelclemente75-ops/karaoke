@@ -32,6 +32,7 @@ const db = getDatabase(firebaseApp);
 const YT_API_KEYS = [
   "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0",
   "AIzaSyBDWAwcmx9Joj-P4LQFyHtfcPl29YkeJwA",
+  "AIzaSyBT6FpIzrn82QYjU6bCz2EOgABYwVcv-as",
 ];
 let currentKeyIndex = 0;
 function getYTKey() { return YT_API_KEYS[currentKeyIndex]; }
