@@ -138,11 +138,12 @@ async function searchYT(query) {
 // ══════════════════════════════════════════════════════════
 function TVPlayer({ song, nextSong }) {
   const [loaded, setLoaded] = useState(false);
-  const [key, setKey] = useState(song?.videoId);
+  const [iframeKey, setIframeKey] = useState(`${song?.videoId}-${Date.now()}`);
 
   useEffect(() => {
     setLoaded(false);
-    setKey(song?.videoId);
+    // Use timestamp to force fresh iframe — bypasses autoplay block
+    setIframeKey(`${song?.videoId}-${Date.now()}`);
     const timer = setTimeout(() => setLoaded(true), 8000); // fallback
     return () => clearTimeout(timer);
   }, [song?.videoId]);
@@ -227,13 +228,13 @@ function TVPlayer({ song, nextSong }) {
 
       {/* YouTube iframe */}
       <iframe
-        key={key}
+        key={iframeKey}
         style={{ width:"100%", height:"100%", border:"none", opacity: loaded ? 1 : 0, transition:"opacity 0.5s ease" }}
-        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&rel=0&modestbranding=1&vq=medium`}
-        allow="autoplay; fullscreen"
+        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&mute=0&rel=0&modestbranding=1&vq=medium&enablejsapi=1&playsinline=1&iv_load_policy=3`}
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
         allowFullScreen
         title="Karaoke"
-        onLoad={() => setLoaded(true)}
+        onLoad={() => setTimeout(() => setLoaded(true), 1500)}
       />
     </div>
   );
