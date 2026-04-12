@@ -173,10 +173,10 @@ function TVPlayer({ song, nextSong }) {
   useEffect(() => {
     setLoaded(false);
     // Use timestamp to force fresh iframe — bypasses autoplay block
-    setIframeKey(`${song?.videoId}-${Date.now()}`);
+    setIframeKey(`${song?.videoId}-${song?.startedAt || Date.now()}`);
     const timer = setTimeout(() => setLoaded(true), 8000); // fallback
     return () => clearTimeout(timer);
-  }, [song?.videoId]);
+  }, [song?.videoId, song?.startedAt]);
 
   return (
     <div style={{ width:"100%", height:"100%", position:"relative", background:"#000" }}>
@@ -561,6 +561,41 @@ export default function App() {
       toast$("Could not stop song", "err");
     } finally {
       setWorkingId("");
+    }
+  };
+
+  const restartSong = async () => {
+    if (!currentSong || workingId === "__restart__") return;
+    setWorkingId("__restart__");
+    try {
+      await update(ref(db), {
+        current: {
+          ...currentSong,
+          startedAt: Date.now(), // new timestamp forces TVPlayer to reload iframe
+        },
+      });
+      toast$("🔄 Restarting song...");
+    } catch {
+      toast$("Could not restart song", "err");
+    } finally {
+      setWorkingId("");
+    }
+  };
+
+  const requeueSong = async (entry) => {
+    try {
+      await push(ref(db, "queue"), {
+        title: entry.title,
+        author: entry.author,
+        videoId: entry.videoId,
+        thumb: entry.thumb,
+        singer: entry.singer,
+        table: entry.table,
+        timestamp: Date.now(),
+      });
+      toast$("🔁 Added back to queue!");
+    } catch {
+      toast$("Could not requeue song", "err");
     }
   };
 
@@ -1325,12 +1360,15 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                            <button className="btn btn-p" onClick={() => playSong(entry)} disabled={workingId === entry.fbKey}>
-                              Play
+                          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap:"wrap" }}>
+                            <button className="btn btn-p" onClick={() => playSong(entry)} disabled={!!workingId}>
+                              ▶ Play
+                            </button>
+                            <button className="btn btn-p" style={{background:"linear-gradient(135deg,#00aaff,#0055cc)"}} onClick={() => requeueSong(entry)} disabled={!!workingId}>
+                              🔁 Repeat
                             </button>
                             <button className="btn-r" onClick={() => removeQ(entry)} disabled={workingId === entry.fbKey}>
-                              Remove
+                              ✕ Remove
                             </button>
                           </div>
                         </div>
@@ -1348,9 +1386,19 @@ export default function App() {
                         <div style={{ color: "rgba(255,255,255,.55)", marginBottom: 12 }}>
                           🎤 {currentSong.singer} · Table {currentSong.table}
                         </div>
-                        <button className="btn-r" onClick={stopSong} disabled={workingId === "__stop__"}>
-                          Stop
-                        </button>
+                        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                          <button className="btn-r" onClick={stopSong} disabled={workingId === "__stop__"}>
+                            ⏹ Stop
+                          </button>
+                          <button className="btn btn-p" style={{padding:"8px 16px",fontSize:".85rem"}} onClick={restartSong} disabled={workingId === "__restart__"}>
+                            🔄 Restart
+                          </button>
+                          {queue.length > 0 && (
+                            <button className="btn btn-p" style={{padding:"8px 16px",fontSize:".85rem",background:"linear-gradient(135deg,#00cc66,#009944)"}} onClick={() => playSong(queue[0])} disabled={!!workingId}>
+                              ⏭ Next
+                            </button>
+                          )}
+                        </div>
                       </>
                     ) : (
                       <div>No song is currently playing</div>
