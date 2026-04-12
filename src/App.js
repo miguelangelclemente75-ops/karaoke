@@ -593,9 +593,33 @@ export default function App() {
         table: entry.table,
         timestamp: Date.now(),
       });
-      toast$("🔁 Added back to queue!");
+      toast$("🔁 Added to queue!");
     } catch {
       toast$("Could not requeue song", "err");
+    }
+  };
+
+  const playNow = async (entry) => {
+    if (workingId) return;
+    setWorkingId("__playnow__");
+    try {
+      await update(ref(db), {
+        current: {
+          title: entry.title,
+          author: entry.author,
+          videoId: entry.videoId,
+          thumb: entry.thumb,
+          singer: entry.singer,
+          table: entry.table,
+          startedAt: Date.now(),
+        },
+      });
+      setDjTab("now");
+      toast$("▶ Playing now on TV!");
+    } catch {
+      toast$("Could not play song", "err");
+    } finally {
+      setWorkingId("");
     }
   };
 
@@ -1117,62 +1141,106 @@ export default function App() {
           <div style={{ animation: "slideIn .3s ease" }}>
             <h2 style={{ margin: "0 0 16px", color: "#ff88ff", fontSize: "1.1rem" }}>📋 My Requests</h2>
 
-            {myReqs.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: 36 }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 10 }}>🎵</div>
-                <p style={{ color: "rgba(255,255,255,0.45)" }}>You haven't requested any songs yet</p>
-                <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 14 }}>
-                  Request a Song
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {[...myReqs].reverse().map((req, i) => {
-                  const status = statusByRequest(req);
+            {(() => {
+              // DJ ve todo; cliente con QR ve solo su mesa; cliente sin QR ve sus requests locales
+              const visibleReqs = isDJMode && adminOk
+                ? [...pending, ...queue].map(r => ({ ...r, _source: "live" })) // DJ ve lista en vivo
+                : tableFromURL !== null
+                ? myReqs.filter(r => r.table === tableFromURL)
+                : myReqs;
 
-                  return (
-                    <div key={req.fbKey || i} className="card" style={{ padding: "14px 18px" }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                        {!!req.thumb && (
-                          <img
-                            src={req.thumb}
-                            alt=""
-                            style={{ width: 72, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
-                            onError={(e) => (e.currentTarget.style.display = "none")}
-                          />
-                        )}
+              if (visibleReqs.length === 0) return (
+                <div className="card" style={{ textAlign: "center", padding: 36 }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: 10 }}>🎵</div>
+                  <p style={{ color: "rgba(255,255,255,0.45)" }}>
+                    {isDJMode && adminOk ? "No songs yet" : "You haven't requested any songs yet"}
+                  </p>
+                  {!isDJMode && (
+                    <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 14 }}>
+                      Request a Song
+                    </button>
+                  )}
+                </div>
+              );
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: "bold", fontSize: ".88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {req.title}
-                          </div>
-                          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".75rem", marginTop: 3 }}>
-                            {req.author}
+              const listToShow = isDJMode && adminOk ? visibleReqs : [...visibleReqs].reverse();
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {listToShow.map((req, i) => {
+                    const status = isDJMode && adminOk
+                      ? (pending.some(p => p.fbKey === req.fbKey) ? "pending"
+                        : queue.some(q => q.fbKey === req.fbKey) ? "approved" : "done")
+                      : statusByRequest(req);
+
+                    return (
+                      <div key={req.fbKey || i} className="card" style={{ padding: "14px 18px" }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                          {!!req.thumb && (
+                            <img
+                              src={req.thumb}
+                              alt=""
+                              style={{ width: 72, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
+                              onError={(e) => (e.currentTarget.style.display = "none")}
+                            />
+                          )}
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: "bold", fontSize: ".88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {req.title}
+                            </div>
+                            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".75rem", marginTop: 3 }}>
+                              {req.author}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: ".72rem", color: "rgba(255,255,255,0.4)" }}>Table {req.table}</span>
-                        <span className={`badge ${status === "pending" ? "badge-y" : status === "approved" || status === "playing" ? "badge-g" : "badge-r"}`}>
-                          {status === "pending"
-                            ? "⏳ Pending"
-                            : status === "approved"
-                            ? "✅ In Queue"
-                            : status === "playing"
-                            ? "🎤 Singing Now"
-                            : "✅ Done"}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <span style={{ fontSize: ".72rem", color: "rgba(255,255,255,0.4)" }}>Table {req.table}</span>
+                          <span className={`badge ${status === "pending" ? "badge-y" : status === "approved" || status === "playing" ? "badge-g" : "badge-r"}`}>
+                            {status === "pending"
+                              ? "⏳ Pending"
+                              : status === "approved"
+                              ? "✅ In Queue"
+                              : status === "playing"
+                              ? "🎤 Singing Now"
+                              : "✅ Done"}
+                          </span>
+                        </div>
 
-                <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 4 }}>
-                  + Request Another Song
-                </button>
-              </div>
-            )}
+                        {/* Botones de repetir — SOLO visibles para el DJ en canciones Done */}
+                        {isDJMode && adminOk && status === "done" && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                            <button
+                              className="btn btn-p"
+                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#ff6600,#cc3300)" }}
+                              onClick={() => playNow(req)}
+                              disabled={!!workingId}
+                            >
+                              ▶ Play Now
+                            </button>
+                            <button
+                              className="btn btn-p"
+                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#00aaff,#0055cc)" }}
+                              onClick={() => requeueSong(req)}
+                              disabled={!!workingId}
+                            >
+                              ➕ Add to Queue
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {!isDJMode && (
+                    <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 4 }}>
+                      + Request Another Song
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1279,6 +1347,7 @@ export default function App() {
                     { key: "pending", label: `Pending (${pending.length})` },
                     { key: "queue", label: `Queue (${queue.length})` },
                     { key: "now", label: "Now Playing" },
+                    { key: "history", label: "🔁 History" },
                   ].map((tab) => (
                     <button key={tab.key} className={`tab ${djTab === tab.key ? "on" : ""}`} onClick={() => setDjTab(tab.key)}>
                       {tab.label}
@@ -1374,6 +1443,43 @@ export default function App() {
                         </div>
                       ))
                     )}
+                  </div>
+                )}
+
+                {djTab === "history" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {(() => {
+                      const done = myReqs.filter(r => statusByRequest(r) === "done");
+                      if (done.length === 0) return (
+                        <div className="card" style={{ textAlign: "center" }}>No played songs yet</div>
+                      );
+                      return [...done].reverse().map((req, i) => (
+                        <div key={req.fbKey || i} className="card" style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                            {!!req.thumb && (
+                              <img src={req.thumb} alt="" style={{ width: 72, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
+                                onError={(e) => (e.currentTarget.style.display = "none")} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: "bold", fontSize: ".88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.title}</div>
+                              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".75rem", marginTop: 3 }}>🎤 {req.singer} · Table {req.table}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <button className="btn btn-p"
+                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#ff6600,#cc3300)" }}
+                              onClick={() => playNow(req)} disabled={!!workingId}>
+                              ▶ Play Now
+                            </button>
+                            <button className="btn btn-p"
+                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#00aaff,#0055cc)" }}
+                              onClick={() => requeueSong(req)} disabled={!!workingId}>
+                              ➕ Add to Queue
+                            </button>
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
 
