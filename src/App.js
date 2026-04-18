@@ -165,15 +165,51 @@ async function searchYT(query) {
 // ══════════════════════════════════════════════════════════
 // TV PLAYER — with loading screen
 // ══════════════════════════════════════════════════════════
-function TVPlayer({ song, nextSong }) {
+function TVPlayer({ song, nextSong, onSongEnded }) {
   const [loaded, setLoaded] = useState(false);
   const [iframeKey, setIframeKey] = useState(`${song?.videoId}-${Date.now()}`);
+  const playerRef = useRef(null);
 
   useEffect(() => {
     setLoaded(false);
     setIframeKey(`${song?.videoId}-${song?.startedAt || Date.now()}`);
     const timer = setTimeout(() => setLoaded(true), 8000);
     return () => clearTimeout(timer);
+  }, [song?.videoId, song?.startedAt]);
+
+  // YouTube IFrame API — detectar cuando termina el video
+  useEffect(() => {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      document.head.appendChild(tag);
+    }
+
+    const onReady = () => {
+      if (!playerRef.current) return;
+      window._ytPlayer = new window.YT.Player(playerRef.current, {
+        events: {
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.ENDED) {
+              onSongEnded && onSongEnded();
+            }
+          },
+        },
+      });
+    };
+
+    if (window.YT && window.YT.Player) {
+      onReady();
+    } else {
+      window.onYouTubeIframeAPIReady = onReady;
+    }
+
+    return () => {
+      if (window._ytPlayer) {
+        try { window._ytPlayer.destroy(); } catch {}
+        window._ytPlayer = null;
+      }
+    };
   }, [song?.videoId, song?.startedAt]);
 
   return (
@@ -251,8 +287,10 @@ function TVPlayer({ song, nextSong }) {
 
       <iframe
         key={iframeKey}
+        id="yt-karaoke-player"
+        ref={playerRef}
         style={{ width:"100%", height:"100%", border:"none", opacity: loaded ? 1 : 0, transition:"opacity 0.5s ease" }}
-        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&mute=0&rel=0&modestbranding=1&vq=medium&enablejsapi=1&playsinline=1&iv_load_policy=3`}
+        src={`https://www.youtube.com/embed/${song.videoId}?autoplay=1&mute=0&rel=0&modestbranding=1&vq=medium&enablejsapi=1&playsinline=1&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`}
         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
         allowFullScreen
         title="Karaoke"
@@ -741,7 +779,9 @@ export default function App() {
       <div style={{ width:"100vw", height:"100vh", background:"#000", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"Georgia,serif" }}>
         <style>{css}</style>
         {currentSong ? (
-          <TVPlayer song={currentSong} nextSong={queue[0] || null} />
+          <TVPlayer song={currentSong} nextSong={queue[0] || null} onSongEnded={async () => {
+            try { await set(ref(db, "current"), null); } catch {}
+          }} />
         ) : (
           <div style={{ textAlign:"center", color:"#fff" }}>
             <div style={{ fontSize:"6rem", marginBottom:20 }}>🎤</div>
