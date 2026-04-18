@@ -120,7 +120,6 @@ async function searchYT(query) {
 
       const data = await res.json();
 
-      // Quota exceeded — try next key
       if (data.error?.code === 403) {
         rotateYTKey();
         continue;
@@ -172,15 +171,13 @@ function TVPlayer({ song, nextSong }) {
 
   useEffect(() => {
     setLoaded(false);
-    // Use timestamp to force fresh iframe — bypasses autoplay block
     setIframeKey(`${song?.videoId}-${song?.startedAt || Date.now()}`);
-    const timer = setTimeout(() => setLoaded(true), 8000); // fallback
+    const timer = setTimeout(() => setLoaded(true), 8000);
     return () => clearTimeout(timer);
   }, [song?.videoId, song?.startedAt]);
 
   return (
     <div style={{ width:"100%", height:"100%", position:"relative", background:"#000" }}>
-      {/* Loading screen */}
       {!loaded && (
         <div style={{
           position:"absolute", inset:0, zIndex:10,
@@ -196,7 +193,6 @@ function TVPlayer({ song, nextSong }) {
             @keyframes tvDot{0%,80%,100%{transform:scale(0);opacity:0}40%{transform:scale(1);opacity:1}}
           `}</style>
 
-          {/* Logo */}
           <div style={{
             fontSize:"clamp(3rem,8vw,6rem)", marginBottom:16,
             background:"linear-gradient(90deg,#ff00ff,#00ffff,#ffcc00,#ff00ff)",
@@ -210,7 +206,6 @@ function TVPlayer({ song, nextSong }) {
             🎤 KARAOKE NIGHT
           </div>
 
-          {/* Song info */}
           <div style={{
             background:"rgba(255,255,255,0.04)",
             border:"1px solid rgba(255,0,255,0.2)",
@@ -234,7 +229,6 @@ function TVPlayer({ song, nextSong }) {
             </div>
           </div>
 
-          {/* Animated dots */}
           <div style={{ display:"flex", gap:12, marginBottom:40 }}>
             {[0,1,2,3,4].map(i => (
               <div key={i} style={{
@@ -247,7 +241,6 @@ function TVPlayer({ song, nextSong }) {
             ))}
           </div>
 
-          {/* Next up */}
           {nextSong && (
             <div style={{ color:"rgba(255,255,255,0.25)", fontSize:"clamp(.7rem,1.5vw,.95rem)", letterSpacing:2 }}>
               UP NEXT: {nextSong.title} — 🎤 {nextSong.singer}
@@ -256,7 +249,6 @@ function TVPlayer({ song, nextSong }) {
         </div>
       )}
 
-      {/* YouTube iframe */}
       <iframe
         key={iframeKey}
         style={{ width:"100%", height:"100%", border:"none", opacity: loaded ? 1 : 0, transition:"opacity 0.5s ease" }}
@@ -324,7 +316,6 @@ export default function App() {
     };
   }, []);
 
-  // 🔒 BLOQUEAR MESA DESDE QR
   useEffect(() => {
     if (tableFromURL !== null) {
       setTable(tableFromURL);
@@ -359,22 +350,18 @@ export default function App() {
     const unsubscribePending = onValue(pendingRef, (snap) => {
       const data = snap.val();
       if (!data) return setPending([]);
-
       const list = Object.entries(data)
         .map(([key, val]) => ({ ...(val || {}), fbKey: key }))
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
       setPending(list);
     });
 
     const unsubscribeQueue = onValue(queueRef, (snap) => {
       const data = snap.val();
       if (!data) return setQueue([]);
-
       const list = Object.entries(data)
         .map(([key, val]) => ({ ...(val || {}), fbKey: key }))
         .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
       setQueue(list);
     });
 
@@ -391,17 +378,13 @@ export default function App() {
 
   const doSearch = async () => {
     if (!songQ.trim() || searching) return;
-
     setSearching(true);
     setYtFailed(false);
     setPickedVideo(null);
     setYtResults([]);
-
     try {
       const results = await searchYT(`${songQ.trim()} karaoke lyrics`);
-      if (results.length === 0) {
-        toast$("No results found, try a different name", "err");
-      }
+      if (results.length === 0) toast$("No results found, try a different name", "err");
       setYtResults(results);
     } catch {
       setYtFailed(true);
@@ -418,28 +401,18 @@ export default function App() {
     if (!pickedVideo) return toast$("Please choose a video first", "err");
 
     const normalizedName = name.trim();
-    const finalTable = tableFromURL ?? table; // 🔒 MESA FORZADA DESDE QR
+    const finalTable = tableFromURL ?? table;
 
     const duplicatePending = pending.some(
-      (p) =>
-        p.videoId === pickedVideo.id &&
-        p.singer?.toLowerCase() === normalizedName.toLowerCase() &&
-        p.table === finalTable
+      (p) => p.videoId === pickedVideo.id && p.singer?.toLowerCase() === normalizedName.toLowerCase() && p.table === finalTable
     );
-
     const duplicateQueued = queue.some(
-      (q) =>
-        q.videoId === pickedVideo.id &&
-        q.singer?.toLowerCase() === normalizedName.toLowerCase() &&
-        q.table === finalTable
+      (q) => q.videoId === pickedVideo.id && q.singer?.toLowerCase() === normalizedName.toLowerCase() && q.table === finalTable
     );
 
-    if (duplicatePending || duplicateQueued) {
-      return toast$("This song is already in progress for you", "err");
-    }
+    if (duplicatePending || duplicateQueued) return toast$("This song is already in progress for you", "err");
 
     setSubmitting(true);
-
     try {
       const req = {
         title: pickedVideo.title,
@@ -451,10 +424,8 @@ export default function App() {
         status: "pending",
         timestamp: Date.now(),
       };
-
       const newRef = await push(ref(db, "pending"), req);
       const localReq = { ...req, fbKey: newRef.key };
-
       setMyReqs((prev) => [...prev, localReq]);
       setSongQ("");
       setYtResults([]);
@@ -471,19 +442,13 @@ export default function App() {
   const approve = async (req) => {
     if (!req?.fbKey || workingId) return;
     setWorkingId(req.fbKey);
-
     try {
       const queueRef = push(ref(db, "queue"));
       await update(ref(db), {
         [`queue/${queueRef.key}`]: {
-          title: req.title,
-          author: req.author,
-          videoId: req.videoId,
-          thumb: req.thumb,
-          singer: req.singer,
-          table: req.table,
-          timestamp: Date.now(),
-          sourcePendingKey: req.fbKey,
+          title: req.title, author: req.author, videoId: req.videoId,
+          thumb: req.thumb, singer: req.singer, table: req.table,
+          timestamp: Date.now(), sourcePendingKey: req.fbKey,
         },
         [`pending/${req.fbKey}`]: null,
       });
@@ -498,7 +463,6 @@ export default function App() {
   const reject = async (req) => {
     if (!req?.fbKey || workingId) return;
     setWorkingId(req.fbKey);
-
     try {
       await remove(ref(db, `pending/${req.fbKey}`));
       toast$("❌ Rejected", "err");
@@ -512,7 +476,6 @@ export default function App() {
   const removeQ = async (req) => {
     if (!req?.fbKey || workingId) return;
     setWorkingId(req.fbKey);
-
     try {
       await remove(ref(db, `queue/${req.fbKey}`));
       toast$("Removed", "err");
@@ -526,18 +489,12 @@ export default function App() {
   const playSong = async (entry) => {
     if (!entry?.fbKey || workingId) return;
     setWorkingId(entry.fbKey);
-
     try {
       await update(ref(db), {
         current: {
-          title: entry.title,
-          author: entry.author,
-          videoId: entry.videoId,
-          thumb: entry.thumb,
-          singer: entry.singer,
-          table: entry.table,
-          queueKey: entry.fbKey,
-          startedAt: Date.now(),
+          title: entry.title, author: entry.author, videoId: entry.videoId,
+          thumb: entry.thumb, singer: entry.singer, table: entry.table,
+          queueKey: entry.fbKey, startedAt: Date.now(),
         },
         [`queue/${entry.fbKey}`]: null,
       });
@@ -553,7 +510,6 @@ export default function App() {
   const stopSong = async () => {
     if (workingId === "__stop__") return;
     setWorkingId("__stop__");
-
     try {
       await set(ref(db, "current"), null);
       toast$("⏹ Stopped", "err");
@@ -568,12 +524,7 @@ export default function App() {
     if (!currentSong || workingId === "__restart__") return;
     setWorkingId("__restart__");
     try {
-      await update(ref(db), {
-        current: {
-          ...currentSong,
-          startedAt: Date.now(), // new timestamp forces TVPlayer to reload iframe
-        },
-      });
+      await update(ref(db), { current: { ...currentSong, startedAt: Date.now() } });
       toast$("🔄 Restarting song...");
     } catch {
       toast$("Could not restart song", "err");
@@ -585,12 +536,8 @@ export default function App() {
   const requeueSong = async (entry) => {
     try {
       await push(ref(db, "queue"), {
-        title: entry.title,
-        author: entry.author,
-        videoId: entry.videoId,
-        thumb: entry.thumb,
-        singer: entry.singer,
-        table: entry.table,
+        title: entry.title, author: entry.author, videoId: entry.videoId,
+        thumb: entry.thumb, singer: entry.singer, table: entry.table,
         timestamp: Date.now(),
       });
       toast$("🔁 Added to queue!");
@@ -605,12 +552,8 @@ export default function App() {
     try {
       await update(ref(db), {
         current: {
-          title: entry.title,
-          author: entry.author,
-          videoId: entry.videoId,
-          thumb: entry.thumb,
-          singer: entry.singer,
-          table: entry.table,
+          title: entry.title, author: entry.author, videoId: entry.videoId,
+          thumb: entry.thumb, singer: entry.singer, table: entry.table,
           startedAt: Date.now(),
         },
       });
@@ -631,14 +574,12 @@ export default function App() {
       toast$("DJ access granted");
       return;
     }
-
     setAdminErr(true);
     setAdminPwd("");
   };
 
   const statusByRequest = (req) => {
     const requestId = req.fbKey;
-
     if (currentSong?.queueKey && currentSong.queueKey === requestId) return "playing";
     if (queue.some((q) => q.sourcePendingKey === requestId || q.fbKey === requestId)) return "approved";
     if (pending.some((p) => p.fbKey === requestId)) return "pending";
@@ -646,7 +587,8 @@ export default function App() {
   };
 
   // ══════════════════════════════════════════════════════════
-  // NEXT UP MODE — second TV screen showing queue
+  // NEXT UP MODE — pantalla de cola en el segundo TV
+  // CAMBIOS: cards más compactos, fuentes reducidas, hasta 10 entradas
   // ══════════════════════════════════════════════════════════
   if (isNextUpMode) {
     return (
@@ -654,80 +596,80 @@ export default function App() {
         <style>{css}</style>
         <style>{`
           @keyframes marquee { 0% { transform: translateX(100vw); } 100% { transform: translateX(-100%); } }
-          @keyframes fadeRow { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+          @keyframes fadeRow { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         `}</style>
 
-        {/* HEADER */}
-        <div style={{ background:"linear-gradient(90deg,#1a0035,#0d001a)", borderBottom:"3px solid #ff00ff", padding:"20px 40px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+        {/* HEADER — reducido */}
+        <div style={{ background:"linear-gradient(90deg,#1a0035,#0d001a)", borderBottom:"2px solid #ff00ff", padding:"10px 30px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div>
-            <div style={{ fontSize:"2.5rem", fontWeight:"bold", background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:4 }}>HURRICANE</div>
-            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1rem", letterSpacing:3 }}>🎤 KARAOKE NIGHT</div>
+            <div style={{ fontSize:"1.6rem", fontWeight:"bold", background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:4 }}>HURRICANE</div>
+            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:".75rem", letterSpacing:3 }}>🎤 KARAOKE NIGHT</div>
           </div>
           <div style={{ textAlign:"right" }}>
-            <div style={{ color:"rgba(255,255,255,0.35)", fontSize:"1rem", letterSpacing:2 }}>COMING UP NEXT</div>
-            <div style={{ color:"#ffcc00", fontSize:"2rem", fontWeight:"bold" }}>{queue.length} in queue</div>
+            <div style={{ color:"rgba(255,255,255,0.35)", fontSize:".75rem", letterSpacing:2 }}>COMING UP NEXT</div>
+            <div style={{ color:"#ffcc00", fontSize:"1.4rem", fontWeight:"bold" }}>{queue.length} in queue</div>
           </div>
         </div>
 
-        {/* NOW PLAYING BAR */}
+        {/* NOW PLAYING BAR — reducido */}
         {currentSong && (
-          <div style={{ background:"rgba(0,200,100,0.12)", borderBottom:"2px solid rgba(0,200,100,0.4)", padding:"16px 40px", display:"flex", alignItems:"center", gap:20, flexShrink:0 }}>
-            <span className="live-dot" style={{ width:14, height:14 }}/>
-            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.1rem", letterSpacing:2, flexShrink:0 }}>NOW PLAYING</div>
-            <div style={{ fontWeight:"bold", fontSize:"1.4rem", color:"#00ff88", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{currentSong.title}</div>
-            <div style={{ color:"rgba(255,255,255,0.6)", fontSize:"1.1rem", flexShrink:0 }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
+          <div style={{ background:"rgba(0,200,100,0.12)", borderBottom:"1px solid rgba(0,200,100,0.4)", padding:"8px 30px", display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+            <span className="live-dot" style={{ width:10, height:10 }}/>
+            <div style={{ color:"rgba(255,255,255,0.5)", fontSize:".8rem", letterSpacing:2, flexShrink:0 }}>NOW PLAYING</div>
+            <div style={{ fontWeight:"bold", fontSize:"1rem", color:"#00ff88", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{currentSong.title}</div>
+            <div style={{ color:"rgba(255,255,255,0.6)", fontSize:".8rem", flexShrink:0 }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
           </div>
         )}
 
-        {/* QUEUE LIST */}
-        <div style={{ flex:1, overflowY:"hidden", padding:"20px 40px" }}>
+        {/* QUEUE LIST — compacto, hasta 10 */}
+        <div style={{ flex:1, overflowY:"hidden", padding:"8px 30px" }}>
           {queue.length === 0 ? (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", flexDirection:"column", gap:20 }}>
-              <div style={{ fontSize:"5rem" }}>🎵</div>
-              <div style={{ fontSize:"2rem", color:"rgba(255,255,255,0.3)", letterSpacing:3 }}>Queue is empty</div>
-              <div style={{ fontSize:"1.2rem", color:"rgba(255,255,255,0.2)" }}>Scan the QR code at your table to request a song</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", flexDirection:"column", gap:14 }}>
+              <div style={{ fontSize:"3rem" }}>🎵</div>
+              <div style={{ fontSize:"1.4rem", color:"rgba(255,255,255,0.3)", letterSpacing:3 }}>Queue is empty</div>
+              <div style={{ fontSize:".9rem", color:"rgba(255,255,255,0.2)" }}>Scan the QR code at your table to request a song</div>
             </div>
           ) : (
-            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-              {queue.slice(0, 8).map((entry, i) => (
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {queue.slice(0, 10).map((entry, i) => (
                 <div key={entry.fbKey} style={{
-                  display:"flex", alignItems:"center", gap:24,
+                  display:"flex", alignItems:"center", gap:14,
                   background: i === 0 ? "rgba(255,204,0,0.1)" : "rgba(255,255,255,0.03)",
                   border: i === 0 ? "1px solid rgba(255,204,0,0.35)" : "1px solid rgba(255,255,255,0.07)",
-                  borderRadius:16, padding:"16px 24px",
-                  animation: `fadeRow 0.4s ease ${i * 0.08}s both`,
+                  borderRadius:10, padding:"7px 14px",
+                  animation: `fadeRow 0.3s ease ${i * 0.05}s both`,
                 }}>
-                  {/* Position number */}
+                  {/* Número de posición */}
                   <div style={{
-                    width:56, height:56, borderRadius:"50%", flexShrink:0,
+                    width:36, height:36, borderRadius:"50%", flexShrink:0,
                     background: i === 0 ? "linear-gradient(135deg,#ffcc00,#ff8800)" : "rgba(255,255,255,0.08)",
                     display:"flex", alignItems:"center", justifyContent:"center",
-                    fontWeight:"bold", fontSize: i === 0 ? "1.8rem" : "1.4rem",
+                    fontWeight:"bold", fontSize: i === 0 ? "1.1rem" : ".95rem",
                     color: i === 0 ? "#000" : "rgba(255,255,255,0.5)",
                   }}>{i + 1}</div>
 
-                  {/* Song info */}
+                  {/* Info canción */}
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{
                       fontWeight:"bold",
-                      fontSize: i === 0 ? "1.8rem" : "1.4rem",
+                      fontSize: i === 0 ? "1rem" : ".88rem",
                       color: i === 0 ? "#ffcc00" : "#fff",
                       overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-                      marginBottom:4,
+                      marginBottom:1,
                     }}>{entry.title}</div>
-                    <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"1.1rem" }}>
+                    <div style={{ color:"rgba(255,255,255,0.5)", fontSize:".75rem" }}>
                       🎤 {entry.singer}
                     </div>
                   </div>
 
-                  {/* Table badge */}
+                  {/* Badge mesa */}
                   <div style={{
                     background: i === 0 ? "rgba(255,204,0,0.2)" : "rgba(255,0,255,0.1)",
                     border: i === 0 ? "1px solid rgba(255,204,0,0.4)" : "1px solid rgba(255,0,255,0.25)",
-                    borderRadius:12, padding:"8px 20px", flexShrink:0, textAlign:"center",
+                    borderRadius:8, padding:"4px 12px", flexShrink:0, textAlign:"center",
                   }}>
-                    <div style={{ color:"rgba(255,255,255,0.4)", fontSize:".8rem", letterSpacing:2 }}>TABLE</div>
-                    <div style={{ fontWeight:"bold", fontSize:"1.8rem", color: i === 0 ? "#ffcc00" : "#ff88ff" }}>{entry.table}</div>
+                    <div style={{ color:"rgba(255,255,255,0.4)", fontSize:".6rem", letterSpacing:2 }}>TABLE</div>
+                    <div style={{ fontWeight:"bold", fontSize:"1.1rem", color: i === 0 ? "#ffcc00" : "#ff88ff" }}>{entry.table}</div>
                   </div>
                 </div>
               ))}
@@ -736,8 +678,8 @@ export default function App() {
         </div>
 
         {/* BOTTOM TICKER */}
-        <div style={{ background:"rgba(255,0,255,0.08)", borderTop:"1px solid rgba(255,0,255,0.2)", padding:"12px 0", overflow:"hidden", flexShrink:0 }}>
-          <div style={{ display:"inline-block", animation:"marquee 25s linear infinite", whiteSpace:"nowrap", fontSize:"1.1rem", color:"rgba(255,255,255,0.4)", letterSpacing:2 }}>
+        <div style={{ background:"rgba(255,0,255,0.08)", borderTop:"1px solid rgba(255,0,255,0.2)", padding:"8px 0", overflow:"hidden", flexShrink:0 }}>
+          <div style={{ display:"inline-block", animation:"marquee 25s linear infinite", whiteSpace:"nowrap", fontSize:".85rem", color:"rgba(255,255,255,0.4)", letterSpacing:2 }}>
             &nbsp;&nbsp;&nbsp;🎤 Scan the QR code at your table to request a song &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; 🌀 HURRICANE KARAOKE NIGHT &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; 🎵 Request your favorite song and get ready to sing! &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;
           </div>
         </div>
@@ -747,68 +689,28 @@ export default function App() {
 
   if (isTVMode) {
     return (
-      <div
-        style={{
-          width: "100vw",
-          height: "100vh",
-          background: "#000",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "Georgia,serif",
-        }}
-      >
+      <div style={{ width:"100vw", height:"100vh", background:"#000", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"Georgia,serif" }}>
         <style>{css}</style>
-
         {currentSong ? (
           <TVPlayer song={currentSong} nextSong={queue[0] || null} />
         ) : (
-          <div style={{ textAlign: "center", color: "#fff" }}>
-            <div style={{ fontSize: "6rem", marginBottom: 20 }}>🎤</div>
-            <h1
-              style={{
-                fontSize: "4rem",
-                marginBottom: 4,
-                background: "linear-gradient(90deg,#ff00ff,#00ffff)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: 6,
-              }}
-            >
+          <div style={{ textAlign:"center", color:"#fff" }}>
+            <div style={{ fontSize:"6rem", marginBottom:20 }}>🎤</div>
+            <h1 style={{ fontSize:"4rem", marginBottom:4, background:"linear-gradient(90deg,#ff00ff,#00ffff)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:6 }}>
               HURRICANE
             </h1>
-            <h2
-              style={{
-                fontSize: "1.6rem",
-                color: "rgba(255,255,255,0.55)",
-                marginBottom: 30,
-                letterSpacing: 8,
-                fontWeight: "normal",
-              }}
-            >
+            <h2 style={{ fontSize:"1.6rem", color:"rgba(255,255,255,0.55)", marginBottom:30, letterSpacing:8, fontWeight:"normal" }}>
               🎤 KARAOKE NIGHT 🎤
             </h2>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "1.1rem", marginBottom: 30 }}>
+            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"1.1rem", marginBottom:30 }}>
               Scan the QR code at your table to request a song
             </p>
-
             {queue.length > 0 && (
-              <div style={{ marginTop: 20 }}>
-                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: ".9rem", marginBottom: 12 }}>
-                  UP NEXT:
-                </p>
+              <div style={{ marginTop:20 }}>
+                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".9rem", marginBottom:12 }}>UP NEXT:</p>
                 {queue.slice(0, 3).map((s, i) => (
-                  <div
-                    key={s.fbKey}
-                    style={{
-                      color: i === 0 ? "#ffcc00" : "rgba(255,255,255,0.5)",
-                      fontSize: i === 0 ? "1.1rem" : ".9rem",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {i === 0 ? "▶ " : "  "}
-                    {s.title} — 🎤 {s.singer} (Table {s.table})
+                  <div key={s.fbKey} style={{ color: i === 0 ? "#ffcc00" : "rgba(255,255,255,0.5)", fontSize: i === 0 ? "1.1rem" : ".9rem", marginBottom:6 }}>
+                    {i === 0 ? "▶ " : "  "}{s.title} — 🎤 {s.singer} (Table {s.table})
                   </div>
                 ))}
               </div>
@@ -820,166 +722,74 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg,#08001a 0%,#160030 50%,#0a0018 100%)",
-        fontFamily: "Georgia,serif",
-        color: "#fff",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#08001a 0%,#160030 50%,#0a0018 100%)", fontFamily:"Georgia,serif", color:"#fff", position:"relative", overflow:"hidden" }}>
       <style>{css}</style>
 
       {notes.map((n, i) => (
-        <div
-          key={i}
-          className="fn"
-          style={{ left: n.left, animationDelay: n.delay, fontSize: n.size, opacity: n.op }}
-        >
-          ♪
-        </div>
+        <div key={i} className="fn" style={{ left:n.left, animationDelay:n.delay, fontSize:n.size, opacity:n.op }}>♪</div>
       ))}
 
       {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 18,
-            right: 18,
-            zIndex: 1100,
-            background: toast.type === "err" ? "rgba(220,40,40,.92)" : "rgba(30,180,90,.92)",
-            padding: "11px 22px",
-            borderRadius: 14,
-            fontWeight: "bold",
-            fontSize: ".9rem",
-            animation: "toastIn .3s ease",
-            maxWidth: 300,
-          }}
-        >
+        <div style={{ position:"fixed", top:18, right:18, zIndex:1100, background: toast.type === "err" ? "rgba(220,40,40,.92)" : "rgba(30,180,90,.92)", padding:"11px 22px", borderRadius:14, fontWeight:"bold", fontSize:".9rem", animation:"toastIn .3s ease", maxWidth:300 }}>
           {toast.msg}
         </div>
       )}
 
-      <div
-        style={{
-          textAlign: "center",
-          padding: "28px 16px 18px",
-          borderBottom: "1px solid rgba(255,0,255,0.12)",
-          position: "relative",
-          zIndex: 10,
-        }}
-      >
-        <h1 className="glow" style={{ fontSize: "clamp(1.6rem,5vw,2.3rem)", margin: 0, letterSpacing: 3 }}>
-          HURRICANE
-        </h1>
-        <p style={{ color: "rgba(255,255,255,0.35)", margin: "4px 0 14px", letterSpacing: 2, fontSize: ".72rem" }}>
-          SONG REQUEST SYSTEM
-        </p>
+      <div style={{ textAlign:"center", padding:"28px 16px 18px", borderBottom:"1px solid rgba(255,0,255,0.12)", position:"relative", zIndex:10 }}>
+        <h1 className="glow" style={{ fontSize:"clamp(1.6rem,5vw,2.3rem)", margin:0, letterSpacing:3 }}>HURRICANE</h1>
+        <p style={{ color:"rgba(255,255,255,0.35)", margin:"4px 0 14px", letterSpacing:2, fontSize:".72rem" }}>SONG REQUEST SYSTEM</p>
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
           {[
-            { k: "home", label: "🏠 Home" },
-            { k: "request", label: "🎵 Request Song" },
-            { k: "mystatus", label: `📋 My Songs${myReqs.length ? ` (${myReqs.length})` : ""}` },
-            { k: "queue", label: `🎶 Queue (${queue.length})` },
-            ...(isDJMode ? [{ k: "admin", label: "🔐 DJ" }] : []),
+            { k:"home", label:"🏠 Home" },
+            { k:"request", label:"🎵 Request Song" },
+            { k:"mystatus", label:`📋 My Songs${myReqs.length ? ` (${myReqs.length})` : ""}` },
+            { k:"queue", label:`🎶 Queue (${queue.length})` },
+            ...(isDJMode ? [{ k:"admin", label:"🔐 DJ" }] : []),
           ].map(({ k, label }) => (
-            <button key={k} className={`tab ${view === k ? "on" : ""}`} onClick={() => setView(k)}>
-              {label}
-            </button>
+            <button key={k} className={`tab ${view === k ? "on" : ""}`} onClick={() => setView(k)}>{label}</button>
           ))}
         </div>
       </div>
 
-      <div style={{ position: "relative", zIndex: 10, padding: "22px 14px", maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ position:"relative", zIndex:10, padding:"22px 14px", maxWidth:720, margin:"0 auto" }}>
+
         {view === "home" && (
-          <div style={{ animation: "slideIn .3s ease" }}>
-            <div className="card" style={{ textAlign: "center", marginBottom: 18 }}>
-              <div style={{ fontSize: "3.5rem", marginBottom: 10 }}>🎶</div>
-              <h2 style={{ margin: "0 0 6px", fontSize: "1.4rem" }}>Welcome to Hurricane!</h2>
-              <p style={{ color: "rgba(255,255,255,0.55)", margin: "0 0 22px", fontSize: ".9rem" }}>
-                Request any song and sing karaoke on the big screen
-              </p>
+          <div style={{ animation:"slideIn .3s ease" }}>
+            <div className="card" style={{ textAlign:"center", marginBottom:18 }}>
+              <div style={{ fontSize:"3.5rem", marginBottom:10 }}>🎶</div>
+              <h2 style={{ margin:"0 0 6px", fontSize:"1.4rem" }}>Welcome to Hurricane!</h2>
+              <p style={{ color:"rgba(255,255,255,0.55)", margin:"0 0 22px", fontSize:".9rem" }}>Request any song and sing karaoke on the big screen</p>
 
               {currentSong && (
-                <div className="card-green" style={{ marginBottom: 18, textAlign: "left" }}>
-                  <p style={{ margin: "0 0 6px", fontSize: ".72rem", color: "rgba(255,255,255,0.5)" }}>
-                    <span className="live-dot" />
-                    NOW PLAYING
+                <div className="card-green" style={{ marginBottom:18, textAlign:"left" }}>
+                  <p style={{ margin:"0 0 6px", fontSize:".72rem", color:"rgba(255,255,255,0.5)" }}>
+                    <span className="live-dot"/>NOW PLAYING
                   </p>
-                  <div style={{ fontWeight: "bold", fontSize: ".9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {currentSong.title}
-                  </div>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: ".78rem" }}>
-                    🎤 {currentSong.singer} · Table {currentSong.table}
-                  </div>
+                  <div style={{ fontWeight:"bold", fontSize:".9rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{currentSong.title}</div>
+                  <div style={{ color:"rgba(255,255,255,0.5)", fontSize:".78rem" }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
                 </div>
               )}
 
-              <div style={{ marginBottom: 18 }}>
-                <p style={{ margin: "0 0 8px", fontWeight: "bold", color: "#ff88ff", fontSize: ".9rem" }}>
-                  Your name:
-                </p>
-                <input
-                  className="inp"
-                  placeholder="What's your name?"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={{ maxWidth: 280, margin: "0 auto", display: "block" }}
-                />
+              <div style={{ marginBottom:18 }}>
+                <p style={{ margin:"0 0 8px", fontWeight:"bold", color:"#ff88ff", fontSize:".9rem" }}>Your name:</p>
+                <input className="inp" placeholder="What's your name?" value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth:280, margin:"0 auto", display:"block" }}/>
               </div>
 
               {tableFromURL !== null ? (
-                <div style={{ marginBottom: 8 }}>
-                  <p style={{ margin: "0 0 8px", fontWeight: "bold", color: "#ff88ff", fontSize: ".9rem" }}>
-                    Your table:
-                  </p>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 64,
-                      height: 64,
-                      borderRadius: 16,
-                      border: "2px solid #ff00ff",
-                      background: "rgba(255,0,255,0.22)",
-                      fontWeight: "bold",
-                      fontSize: "1.6rem",
-                      color: "#ff88ff",
-                    }}
-                  >
+                <div style={{ marginBottom:8 }}>
+                  <p style={{ margin:"0 0 8px", fontWeight:"bold", color:"#ff88ff", fontSize:".9rem" }}>Your table:</p>
+                  <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:64, height:64, borderRadius:16, border:"2px solid #ff00ff", background:"rgba(255,0,255,0.22)", fontWeight:"bold", fontSize:"1.6rem", color:"#ff88ff" }}>
                     {tableFromURL}
                   </div>
-                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: ".8rem", marginTop: 8 }}>
-                    🔒 Table locked by QR
-                  </p>
+                  <p style={{ color:"rgba(255,255,255,0.45)", fontSize:".8rem", marginTop:8 }}>🔒 Table locked by QR</p>
                 </div>
               ) : (
                 <>
-                  <p style={{ margin: "0 0 10px", fontWeight: "bold", color: "#ff88ff", fontSize: ".9rem" }}>
-                    Select your table:
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                  <p style={{ margin:"0 0 10px", fontWeight:"bold", color:"#ff88ff", fontSize:".9rem" }}>Select your table:</p>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center" }}>
                     {TABLES.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTable(t)}
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 13,
-                          border: table === t ? "2px solid #ff00ff" : "1px solid rgba(255,255,255,0.18)",
-                          background: table === t ? "rgba(255,0,255,0.22)" : "rgba(255,255,255,0.04)",
-                          color: table === t ? "#ff88ff" : "rgba(255,255,255,0.65)",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                          fontSize: "1rem",
-                          transition: "all .2s",
-                        }}
-                      >
+                      <button key={t} onClick={() => setTable(t)} style={{ width:48, height:48, borderRadius:13, border: table === t ? "2px solid #ff00ff" : "1px solid rgba(255,255,255,0.18)", background: table === t ? "rgba(255,0,255,0.22)" : "rgba(255,255,255,0.04)", color: table === t ? "#ff88ff" : "rgba(255,255,255,0.65)", cursor:"pointer", fontWeight:"bold", fontSize:"1rem", transition:"all .2s" }}>
                         {t}
                       </button>
                     ))}
@@ -989,138 +799,75 @@ export default function App() {
             </div>
 
             {name && (tableFromURL !== null || table) && (
-              <div style={{ textAlign: "center", animation: "slideIn .3s ease" }}>
-                <p style={{ color: "rgba(255,255,255,0.55)", marginBottom: 14, fontSize: ".9rem" }}>
-                  Hi <strong style={{ color: "#ff88ff" }}>{name}</strong> · Table{" "}
-                  <strong style={{ color: "#ff88ff" }}>{tableFromURL ?? table}</strong>
+              <div style={{ textAlign:"center", animation:"slideIn .3s ease" }}>
+                <p style={{ color:"rgba(255,255,255,0.55)", marginBottom:14, fontSize:".9rem" }}>
+                  Hi <strong style={{ color:"#ff88ff" }}>{name}</strong> · Table <strong style={{ color:"#ff88ff" }}>{tableFromURL ?? table}</strong>
                 </p>
-                <button className="btn btn-p" onClick={() => setView("request")}>
-                  🎵 Request a Song
-                </button>
+                <button className="btn btn-p" onClick={() => setView("request")}>🎵 Request a Song</button>
               </div>
             )}
           </div>
         )}
 
         {view === "request" && (
-          <div style={{ animation: "slideIn .3s ease" }}>
+          <div style={{ animation:"slideIn .3s ease" }}>
             {(!name || (tableFromURL === null && !table)) && (
-              <div className="card-yellow" style={{ textAlign: "center", marginBottom: 14 }}>
-                ⚠️ First enter your name and table in{" "}
-                <strong style={{ color: "#ffcc00", cursor: "pointer" }} onClick={() => setView("home")}>
-                  Home
-                </strong>
+              <div className="card-yellow" style={{ textAlign:"center", marginBottom:14 }}>
+                ⚠️ First enter your name and table in <strong style={{ color:"#ffcc00", cursor:"pointer" }} onClick={() => setView("home")}>Home</strong>
               </div>
             )}
 
-            <div className="card" style={{ marginBottom: 14 }}>
-              <p style={{ margin: "0 0 10px", fontWeight: "bold", color: "#ff88ff", fontSize: ".9rem" }}>
-                🔍 Search your song:
-              </p>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="inp"
-                  placeholder="Ex: Despacito, My Way, Thriller..."
-                  value={songQ}
-                  onChange={(e) => setSongQ(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && doSearch()}
-                  style={{ flex: 1 }}
-                />
-                <button className="btn btn-p" style={{ padding: "10px 16px", whiteSpace: "nowrap" }} onClick={doSearch} disabled={searching}>
+            <div className="card" style={{ marginBottom:14 }}>
+              <p style={{ margin:"0 0 10px", fontWeight:"bold", color:"#ff88ff", fontSize:".9rem" }}>🔍 Search your song:</p>
+              <div style={{ display:"flex", gap:8 }}>
+                <input className="inp" placeholder="Ex: Despacito, My Way, Thriller..." value={songQ} onChange={(e) => setSongQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch()} style={{ flex:1 }}/>
+                <button className="btn btn-p" style={{ padding:"10px 16px", whiteSpace:"nowrap" }} onClick={doSearch} disabled={searching}>
                   {searching ? "..." : "🔍"}
                 </button>
               </div>
-
-              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: ".75rem", margin: "8px 0 0" }}>
-                Search by song name or artist
-              </p>
+              <p style={{ color:"rgba(255,255,255,0.3)", fontSize:".75rem", margin:"8px 0 0" }}>Search by song name or artist</p>
             </div>
 
             {searching && (
-              <div style={{ textAlign: "center", padding: 30 }}>
-                <div className="spin" />
-                <p style={{ color: "rgba(255,255,255,0.45)", marginTop: 12, fontSize: ".85rem" }}>
-                  Searching on YouTube...
-                </p>
+              <div style={{ textAlign:"center", padding:30 }}>
+                <div className="spin"/>
+                <p style={{ color:"rgba(255,255,255,0.45)", marginTop:12, fontSize:".85rem" }}>Searching on YouTube...</p>
               </div>
             )}
 
             {ytFailed && (
-              <div className="card" style={{ textAlign: "center", padding: 24, borderColor: "rgba(255,100,0,0.3)" }}>
-                <div style={{ fontSize: "2rem", marginBottom: 8 }}>⚠️</div>
-                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: ".85rem", marginBottom: 14 }}>
-                  Could not connect.
-                  <br />
-                  Please try again.
-                </p>
-                <button className="btn btn-p" onClick={doSearch} disabled={searching}>
-                  🔄 Retry
-                </button>
+              <div className="card" style={{ textAlign:"center", padding:24, borderColor:"rgba(255,100,0,0.3)" }}>
+                <div style={{ fontSize:"2rem", marginBottom:8 }}>⚠️</div>
+                <p style={{ color:"rgba(255,255,255,0.6)", fontSize:".85rem", marginBottom:14 }}>Could not connect.<br/>Please try again.</p>
+                <button className="btn btn-p" onClick={doSearch} disabled={searching}>🔄 Retry</button>
               </div>
             )}
 
             {!searching && !ytFailed && ytResults.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: ".8rem", marginBottom: 10 }}>
-                  {pickedVideo
-                    ? "✅ Video selected — you can change it or send the request:"
-                    : "Choose the karaoke video you want to sing:"}
+              <div style={{ marginBottom:14 }}>
+                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".8rem", marginBottom:10 }}>
+                  {pickedVideo ? "✅ Video selected — you can change it or send the request:" : "Choose the karaoke video you want to sing:"}
                 </p>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14 }}>
                   {ytResults.map((v) => (
-                    <div
-                      key={v.id}
-                      className={`vcard ${pickedVideo?.id === v.id ? "sel" : ""}`}
-                      onClick={() => setPickedVideo(v)}
-                    >
+                    <div key={v.id} className={`vcard ${pickedVideo?.id === v.id ? "sel" : ""}`} onClick={() => setPickedVideo(v)}>
                       {!!v.thumb && (
-                        <img
-                          src={v.thumb}
-                          alt=""
-                          style={{ width: 80, height: 45, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
-                          onError={(e) => (e.currentTarget.style.display = "none")}
-                        />
+                        <img src={v.thumb} alt="" style={{ width:80, height:45, borderRadius:8, objectFit:"cover", flexShrink:0 }} onError={(e) => (e.currentTarget.style.display = "none")}/>
                       )}
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: "bold",
-                            fontSize: ".82rem",
-                            lineHeight: 1.3,
-                            marginBottom: 3,
-                            overflow: "hidden",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                          }}
-                        >
-                          {v.title}
-                        </div>
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: ".72rem" }}>{v.author}</div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:"bold", fontSize:".82rem", lineHeight:1.3, marginBottom:3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{v.title}</div>
+                        <div style={{ color:"rgba(255,255,255,0.4)", fontSize:".72rem" }}>{v.author}</div>
                       </div>
-
-                      {pickedVideo?.id === v.id ? (
-                        <span style={{ fontSize: "1.3rem", flexShrink: 0 }}>✅</span>
-                      ) : (
-                        <span style={{ fontSize: ".75rem", color: "rgba(255,255,255,0.35)", flexShrink: 0 }}>
-                          Select
-                        </span>
-                      )}
+                      {pickedVideo?.id === v.id ? <span style={{ fontSize:"1.3rem", flexShrink:0 }}>✅</span> : <span style={{ fontSize:".75rem", color:"rgba(255,255,255,0.35)", flexShrink:0 }}>Select</span>}
                     </div>
                   ))}
                 </div>
-
                 {pickedVideo && (
-                  <div style={{ textAlign: "center" }}>
-                    <div className="card-green" style={{ marginBottom: 12, textAlign: "left" }}>
-                      <p style={{ margin: 0, fontSize: ".83rem", color: "rgba(255,255,255,0.7)" }}>
-                        🎬 <strong style={{ color: "#00cc66" }}>{pickedVideo.title}</strong>
-                      </p>
+                  <div style={{ textAlign:"center" }}>
+                    <div className="card-green" style={{ marginBottom:12, textAlign:"left" }}>
+                      <p style={{ margin:0, fontSize:".83rem", color:"rgba(255,255,255,0.7)" }}>🎬 <strong style={{ color:"#00cc66" }}>{pickedVideo.title}</strong></p>
                     </div>
-                    <button className="btn btn-p" onClick={submitReq} style={{ width: "100%" }} disabled={submitting}>
+                    <button className="btn btn-p" onClick={submitReq} style={{ width:"100%" }} disabled={submitting}>
                       {submitting ? "Sending..." : "🎤 Send Request to DJ"}
                     </button>
                   </div>
@@ -1129,8 +876,8 @@ export default function App() {
             )}
 
             {!searching && !ytFailed && ytResults.length === 0 && !songQ && (
-              <div className="card" style={{ textAlign: "center", padding: 32, color: "rgba(255,255,255,0.35)" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>🎵</div>
+              <div className="card" style={{ textAlign:"center", padding:32, color:"rgba(255,255,255,0.35)" }}>
+                <div style={{ fontSize:"2.5rem", marginBottom:8 }}>🎵</div>
                 Type a song name and press 🔍
               </div>
             )}
@@ -1138,106 +885,55 @@ export default function App() {
         )}
 
         {view === "mystatus" && (
-          <div style={{ animation: "slideIn .3s ease" }}>
-            <h2 style={{ margin: "0 0 16px", color: "#ff88ff", fontSize: "1.1rem" }}>📋 My Requests</h2>
-
+          <div style={{ animation:"slideIn .3s ease" }}>
+            <h2 style={{ margin:"0 0 16px", color:"#ff88ff", fontSize:"1.1rem" }}>📋 My Requests</h2>
             {(() => {
-              // DJ ve todo; cliente con QR ve solo su mesa; cliente sin QR ve sus requests locales
               const visibleReqs = isDJMode && adminOk
-                ? [...pending, ...queue].map(r => ({ ...r, _source: "live" })) // DJ ve lista en vivo
-                : tableFromURL !== null
-                ? myReqs.filter(r => r.table === tableFromURL)
-                : myReqs;
+                ? [...pending, ...queue].map(r => ({ ...r, _source:"live" }))
+                : tableFromURL !== null ? myReqs.filter(r => r.table === tableFromURL) : myReqs;
 
               if (visibleReqs.length === 0) return (
-                <div className="card" style={{ textAlign: "center", padding: 36 }}>
-                  <div style={{ fontSize: "2.5rem", marginBottom: 10 }}>🎵</div>
-                  <p style={{ color: "rgba(255,255,255,0.45)" }}>
-                    {isDJMode && adminOk ? "No songs yet" : "You haven't requested any songs yet"}
-                  </p>
-                  {!isDJMode && (
-                    <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 14 }}>
-                      Request a Song
-                    </button>
-                  )}
+                <div className="card" style={{ textAlign:"center", padding:36 }}>
+                  <div style={{ fontSize:"2.5rem", marginBottom:10 }}>🎵</div>
+                  <p style={{ color:"rgba(255,255,255,0.45)" }}>{isDJMode && adminOk ? "No songs yet" : "You haven't requested any songs yet"}</p>
+                  {!isDJMode && <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop:14 }}>Request a Song</button>}
                 </div>
               );
 
               const listToShow = isDJMode && adminOk ? visibleReqs : [...visibleReqs].reverse();
 
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   {listToShow.map((req, i) => {
                     const status = isDJMode && adminOk
-                      ? (pending.some(p => p.fbKey === req.fbKey) ? "pending"
-                        : queue.some(q => q.fbKey === req.fbKey) ? "approved" : "done")
+                      ? (pending.some(p => p.fbKey === req.fbKey) ? "pending" : queue.some(q => q.fbKey === req.fbKey) ? "approved" : "done")
                       : statusByRequest(req);
 
                     return (
-                      <div key={req.fbKey || i} className="card" style={{ padding: "14px 18px" }}>
-                        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                          {!!req.thumb && (
-                            <img
-                              src={req.thumb}
-                              alt=""
-                              style={{ width: 72, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
-                              onError={(e) => (e.currentTarget.style.display = "none")}
-                            />
-                          )}
-
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: "bold", fontSize: ".88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {req.title}
-                            </div>
-                            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".75rem", marginTop: 3 }}>
-                              {req.author}
-                            </div>
+                      <div key={req.fbKey || i} className="card" style={{ padding:"14px 18px" }}>
+                        <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
+                          {!!req.thumb && <img src={req.thumb} alt="" style={{ width:72, height:40, borderRadius:7, objectFit:"cover", flexShrink:0 }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontWeight:"bold", fontSize:".88rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{req.title}</div>
+                            <div style={{ color:"rgba(255,255,255,0.45)", fontSize:".75rem", marginTop:3 }}>{req.author}</div>
                           </div>
                         </div>
-
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                          <span style={{ fontSize: ".72rem", color: "rgba(255,255,255,0.4)" }}>Table {req.table}</span>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+                          <span style={{ fontSize:".72rem", color:"rgba(255,255,255,0.4)" }}>Table {req.table}</span>
                           <span className={`badge ${status === "pending" ? "badge-y" : status === "approved" || status === "playing" ? "badge-g" : "badge-r"}`}>
-                            {status === "pending"
-                              ? "⏳ Pending"
-                              : status === "approved"
-                              ? "✅ In Queue"
-                              : status === "playing"
-                              ? "🎤 Singing Now"
-                              : "✅ Done"}
+                            {status === "pending" ? "⏳ Pending" : status === "approved" ? "✅ In Queue" : status === "playing" ? "🎤 Singing Now" : "✅ Done"}
                           </span>
                         </div>
-
-                        {/* Botones de repetir — SOLO visibles para el DJ en canciones Done */}
                         {isDJMode && adminOk && status === "done" && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                            <button
-                              className="btn btn-p"
-                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#ff6600,#cc3300)" }}
-                              onClick={() => playNow(req)}
-                              disabled={!!workingId}
-                            >
-                              ▶ Play Now
-                            </button>
-                            <button
-                              className="btn btn-p"
-                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#00aaff,#0055cc)" }}
-                              onClick={() => requeueSong(req)}
-                              disabled={!!workingId}
-                            >
-                              ➕ Add to Queue
-                            </button>
+                          <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                            <button className="btn btn-p" style={{ padding:"7px 14px", fontSize:".82rem", background:"linear-gradient(135deg,#ff6600,#cc3300)" }} onClick={() => playNow(req)} disabled={!!workingId}>▶ Play Now</button>
+                            <button className="btn btn-p" style={{ padding:"7px 14px", fontSize:".82rem", background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => requeueSong(req)} disabled={!!workingId}>➕ Add to Queue</button>
                           </div>
                         )}
                       </div>
                     );
                   })}
-
-                  {!isDJMode && (
-                    <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 4 }}>
-                      + Request Another Song
-                    </button>
-                  )}
+                  {!isDJMode && <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop:4 }}>+ Request Another Song</button>}
                 </div>
               );
             })()}
@@ -1245,71 +941,36 @@ export default function App() {
         )}
 
         {view === "queue" && (
-          <div style={{ animation: "slideIn .3s ease" }}>
-            <h2 style={{ margin: "0 0 16px", color: "#ff88ff", fontSize: "1.1rem" }}>🎶 Song Queue</h2>
-
+          <div style={{ animation:"slideIn .3s ease" }}>
+            <h2 style={{ margin:"0 0 16px", color:"#ff88ff", fontSize:"1.1rem" }}>🎶 Song Queue</h2>
             {currentSong && (
-              <div className="card-green" style={{ marginBottom: 14 }}>
-                <p style={{ margin: "0 0 6px", fontSize: ".72rem", color: "rgba(255,255,255,0.5)" }}>
-                  <span className="live-dot" />
-                  NOW PLAYING ON TV
-                </p>
-
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  {!!currentSong.thumb && (
-                    <img
-                      src={currentSong.thumb}
-                      alt=""
-                      style={{ width: 64, height: 36, borderRadius: 7, objectFit: "cover" }}
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
-                  )}
-
+              <div className="card-green" style={{ marginBottom:14 }}>
+                <p style={{ margin:"0 0 6px", fontSize:".72rem", color:"rgba(255,255,255,0.5)" }}><span className="live-dot"/>NOW PLAYING ON TV</p>
+                <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                  {!!currentSong.thumb && <img src={currentSong.thumb} alt="" style={{ width:64, height:36, borderRadius:7, objectFit:"cover" }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
                   <div>
-                    <div style={{ fontWeight: "bold", fontSize: ".9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>
-                      {currentSong.title}
-                    </div>
-                    <div style={{ color: "rgba(255,255,255,0.5)", fontSize: ".78rem" }}>
-                      🎤 {currentSong.singer} · Table {currentSong.table}
-                    </div>
+                    <div style={{ fontWeight:"bold", fontSize:".9rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:240 }}>{currentSong.title}</div>
+                    <div style={{ color:"rgba(255,255,255,0.5)", fontSize:".78rem" }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
                   </div>
                 </div>
               </div>
             )}
-
             {queue.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: 36 }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 10 }}>🎵</div>
-                <p style={{ color: "rgba(255,255,255,0.45)" }}>Queue is empty — request your song!</p>
-                <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop: 14 }}>
-                  Request a Song
-                </button>
+              <div className="card" style={{ textAlign:"center", padding:36 }}>
+                <div style={{ fontSize:"2.5rem", marginBottom:10 }}>🎵</div>
+                <p style={{ color:"rgba(255,255,255,0.45)" }}>Queue is empty — request your song!</p>
+                <button className="btn btn-p" onClick={() => setView("request")} style={{ marginTop:14 }}>Request a Song</button>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {queue.map((entry, i) => (
-                  <div key={entry.fbKey} className="card" style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <div style={{ fontSize: "1.3rem", width: 28, textAlign: "center", color: i === 0 ? "#ffcc00" : "rgba(255,255,255,.5)" }}>
-                        {i + 1}
-                      </div>
-
-                      {!!entry.thumb && (
-                        <img
-                          src={entry.thumb}
-                          alt=""
-                          style={{ width: 70, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
-                          onError={(e) => (e.currentTarget.style.display = "none")}
-                        />
-                      )}
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: "bold", fontSize: ".86rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {entry.title}
-                        </div>
-                        <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".74rem" }}>
-                          🎤 {entry.singer} · Table {entry.table}
-                        </div>
+                  <div key={entry.fbKey} className="card" style={{ padding:"12px 16px" }}>
+                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                      <div style={{ fontSize:"1.3rem", width:28, textAlign:"center", color: i === 0 ? "#ffcc00" : "rgba(255,255,255,.5)" }}>{i + 1}</div>
+                      {!!entry.thumb && <img src={entry.thumb} alt="" style={{ width:70, height:40, borderRadius:7, objectFit:"cover", flexShrink:0 }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:"bold", fontSize:".86rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.title}</div>
+                        <div style={{ color:"rgba(255,255,255,0.45)", fontSize:".74rem" }}>🎤 {entry.singer} · Table {entry.table}</div>
                       </div>
                     </div>
                   </div>
@@ -1320,78 +981,45 @@ export default function App() {
         )}
 
         {view === "admin" && isDJMode && (
-          <div style={{ animation: "slideIn .3s ease" }}>
+          <div style={{ animation:"slideIn .3s ease" }}>
             {!adminOk ? (
-              <div className="card" style={{ maxWidth: 420, margin: "0 auto" }}>
-                <h2 style={{ marginTop: 0, color: "#ff88ff" }}>🔐 DJ Login</h2>
-
-                <input
-                  className="inp"
-                  type="password"
-                  placeholder="Admin password"
-                  value={adminPwd}
-                  onChange={(e) => setAdminPwd(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && loginAdmin()}
-                />
-
-                {adminErr && <p style={{ color: "#ff8888", fontSize: ".82rem" }}>Invalid password</p>}
-
-                <button className="btn btn-p" onClick={loginAdmin} style={{ marginTop: 10, width: "100%" }}>
-                  Enter
-                </button>
+              <div className="card" style={{ maxWidth:420, margin:"0 auto" }}>
+                <h2 style={{ marginTop:0, color:"#ff88ff" }}>🔐 DJ Login</h2>
+                <input className="inp" type="password" placeholder="Admin password" value={adminPwd} onChange={(e) => setAdminPwd(e.target.value)} onKeyDown={(e) => e.key === "Enter" && loginAdmin()}/>
+                {adminErr && <p style={{ color:"#ff8888", fontSize:".82rem" }}>Invalid password</p>}
+                <button className="btn btn-p" onClick={loginAdmin} style={{ marginTop:10, width:"100%" }}>Enter</button>
               </div>
             ) : (
               <div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
                   {[
-                    { key: "pending", label: `Pending (${pending.length})` },
-                    { key: "queue", label: `Queue (${queue.length})` },
-                    { key: "now", label: "Now Playing" },
-                    { key: "history", label: "🔁 History" },
-                    { key: "tvcontrols", label: "📺 TV Controls" },
+                    { key:"pending", label:`Pending (${pending.length})` },
+                    { key:"queue", label:`Queue (${queue.length})` },
+                    { key:"now", label:"Now Playing" },
+                    { key:"history", label:"🔁 History" },
+                    { key:"tvcontrols", label:"📺 TV Controls" },
                   ].map((tab) => (
-                    <button key={tab.key} className={`tab ${djTab === tab.key ? "on" : ""}`} onClick={() => setDjTab(tab.key)}>
-                      {tab.label}
-                    </button>
+                    <button key={tab.key} className={`tab ${djTab === tab.key ? "on" : ""}`} onClick={() => setDjTab(tab.key)}>{tab.label}</button>
                   ))}
                 </div>
 
                 {djTab === "pending" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {pending.length === 0 ? (
-                      <div className="card" style={{ textAlign: "center" }}>
-                        No pending requests
-                      </div>
+                      <div className="card" style={{ textAlign:"center" }}>No pending requests</div>
                     ) : (
                       pending.map((req) => (
                         <div key={req.fbKey} className="card">
-                          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                            {!!req.thumb && (
-                              <img
-                                src={req.thumb}
-                                alt=""
-                                style={{ width: 90, height: 50, borderRadius: 8, objectFit: "cover" }}
-                                onError={(e) => (e.currentTarget.style.display = "none")}
-                              />
-                            )}
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {req.title}
-                              </div>
-                              <div style={{ color: "rgba(255,255,255,.55)", fontSize: ".8rem" }}>
-                                🎤 {req.singer} · Table {req.table}
-                              </div>
+                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                            {!!req.thumb && <img src={req.thumb} alt="" style={{ width:90, height:50, borderRadius:8, objectFit:"cover" }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontWeight:"bold", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{req.title}</div>
+                              <div style={{ color:"rgba(255,255,255,.55)", fontSize:".8rem" }}>🎤 {req.singer} · Table {req.table}</div>
                             </div>
                           </div>
-
-                          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                            <button className="btn btn-p" onClick={() => approve(req)} disabled={workingId === req.fbKey}>
-                              Approve
-                            </button>
-                            <button className="btn-r" onClick={() => reject(req)} disabled={workingId === req.fbKey}>
-                              Reject
-                            </button>
+                          <div style={{ display:"flex", gap:8, marginTop:12 }}>
+                            <button className="btn btn-p" onClick={() => approve(req)} disabled={workingId === req.fbKey}>Approve</button>
+                            <button className="btn-r" onClick={() => reject(req)} disabled={workingId === req.fbKey}>Reject</button>
                           </div>
                         </div>
                       ))
@@ -1400,46 +1028,24 @@ export default function App() {
                 )}
 
                 {djTab === "queue" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {queue.length === 0 ? (
-                      <div className="card" style={{ textAlign: "center" }}>
-                        Queue is empty
-                      </div>
+                      <div className="card" style={{ textAlign:"center" }}>Queue is empty</div>
                     ) : (
                       queue.map((entry, index) => (
                         <div key={entry.fbKey} className="card">
-                          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                            <div style={{ fontSize: "1.2rem", width: 24, textAlign: "center" }}>{index + 1}</div>
-
-                            {!!entry.thumb && (
-                              <img
-                                src={entry.thumb}
-                                alt=""
-                                style={{ width: 90, height: 50, borderRadius: 8, objectFit: "cover" }}
-                                onError={(e) => (e.currentTarget.style.display = "none")}
-                              />
-                            )}
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {entry.title}
-                              </div>
-                              <div style={{ color: "rgba(255,255,255,.55)", fontSize: ".8rem" }}>
-                                🎤 {entry.singer} · Table {entry.table}
-                              </div>
+                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                            <div style={{ fontSize:"1.2rem", width:24, textAlign:"center" }}>{index + 1}</div>
+                            {!!entry.thumb && <img src={entry.thumb} alt="" style={{ width:90, height:50, borderRadius:8, objectFit:"cover" }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontWeight:"bold", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.title}</div>
+                              <div style={{ color:"rgba(255,255,255,.55)", fontSize:".8rem" }}>🎤 {entry.singer} · Table {entry.table}</div>
                             </div>
                           </div>
-
-                          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap:"wrap" }}>
-                            <button className="btn btn-p" onClick={() => playSong(entry)} disabled={!!workingId}>
-                              ▶ Play
-                            </button>
-                            <button className="btn btn-p" style={{background:"linear-gradient(135deg,#00aaff,#0055cc)"}} onClick={() => requeueSong(entry)} disabled={!!workingId}>
-                              🔁 Repeat
-                            </button>
-                            <button className="btn-r" onClick={() => removeQ(entry)} disabled={workingId === entry.fbKey}>
-                              ✕ Remove
-                            </button>
+                          <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                            <button className="btn btn-p" onClick={() => playSong(entry)} disabled={!!workingId}>▶ Play</button>
+                            <button className="btn btn-p" style={{ background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => requeueSong(entry)} disabled={!!workingId}>🔁 Repeat</button>
+                            <button className="btn-r" onClick={() => removeQ(entry)} disabled={workingId === entry.fbKey}>✕ Remove</button>
                           </div>
                         </div>
                       ))
@@ -1448,59 +1054,69 @@ export default function App() {
                 )}
 
                 {djTab === "tvcontrols" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    <div className="card" style={{ background: "rgba(255,0,255,.1)", border: "2px solid rgba(255,0,255,.5)", textAlign: "center" }}>
-                      <h3 style={{ marginTop: 0, color: "#ff88ff", fontSize: "1rem", letterSpacing: 2 }}>🎤 KARAOKE NIGHT</h3>
-                      <p style={{ color: "rgba(255,255,255,.45)", fontSize: ".78rem", marginBottom: 14 }}>Opens main screen + queue screen simultaneously</p>
-                      <button className="btn btn-p" style={{ padding: "14px 32px", fontSize: "1rem", width: "100%", letterSpacing: 1 }}
+                  <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                    <div className="card" style={{ background:"rgba(255,0,255,.1)", border:"2px solid rgba(255,0,255,.5)", textAlign:"center" }}>
+                      <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:"1rem", letterSpacing:2 }}>🎤 KARAOKE NIGHT</h3>
+                      <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:14 }}>Opens main screen + queue screen simultaneously</p>
+                      <button className="btn btn-p" style={{ padding:"14px 32px", fontSize:"1rem", width:"100%", letterSpacing:1 }}
                         onClick={() => {
                           Promise.all([
-                            fetch("http://192.168.3.13:3500/api/tv/2/launch-url", {
-                              method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ url: "https://karaoke-coral-seven.vercel.app/?modo=tv" })
-                            }),
-                            fetch("http://192.168.3.13:3500/api/tv/1/launch-url", {
-                              method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ url: "https://karaoke-coral-seven.vercel.app/?modo=nextup" })
-                            })
-                          ]).catch(() => {});
+                            fetch("http://192.168.3.13:3500/api/tv/9/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=tv" }) }),
+                            fetch("http://192.168.3.13:3500/api/tv/8/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=nextup" }) })
+                          ]).then(() => alert("✅ Karaoke Night Started!")).catch(() => alert("❌ Error — check server"));
                         }}>
                         🎤 Start Karaoke Night
                       </button>
+                    </div>
+
+                    <div className="card">
+                      <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:".95rem", letterSpacing:1 }}>🎤 Karaoke Main TV</h3>
+                      <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:12 }}>IP 192.168.3.116 — Fire TV</p>
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=tv" }) }).then(r => r.json()).then(() => alert("✅ Karaoke Screen opened!")).catch(() => alert("❌ Error — check server"))}>🎤 Karaoke Screen</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/youtube", { method:"POST" }).then(() => alert("✅ YouTube opened!")).catch(() => alert("❌ Error"))}>▶ YouTube</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => alert("✅ Home sent!")).catch(() => alert("❌ Error"))}>🏠 Home</button>
+                      </div>
+                    </div>
+
+                    <div className="card">
+                      <h3 style={{ marginTop:0, color:"#00ccff", fontSize:".95rem", letterSpacing:1 }}>📋 Karaoke Queue TV</h3>
+                      <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:12 }}>IP 192.168.3.64 — Fire TV</p>
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=nextup" }) }).then(() => alert("✅ Queue Screen opened!")).catch(() => alert("❌ Error"))}>📋 Queue Screen</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/youtube", { method:"POST" }).then(() => alert("✅ YouTube opened!")).catch(() => alert("❌ Error"))}>▶ YouTube</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => alert("✅ Home sent!")).catch(() => alert("❌ Error"))}>🏠 Home</button>
+                      </div>
+                    </div>
+
+                    <div className="card" style={{ background:"rgba(255,0,255,.06)", border:"1px solid rgba(255,0,255,.2)" }}>
+                      <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:".95rem", letterSpacing:1 }}>📺 All TVs</h3>
+                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/youtube", { method:"POST" }).then(() => alert("✅ YouTube on all TVs!")).catch(() => alert("❌ Error"))}>▶ YouTube All</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#00cc66,#009944)" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"PowerOn" }) }).then(() => alert("✅ Power On all!")).catch(() => alert("❌ Error"))}>⚡ Power On All</button>
+                        <button className="btn-r" style={{ padding:"10px 18px" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"PowerOff" }) }).then(() => alert("✅ Power Off all!")).catch(() => alert("❌ Error"))}>⏻ Power Off All</button>
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {djTab === "history" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {(() => {
                       const done = myReqs.filter(r => statusByRequest(r) === "done");
-                      if (done.length === 0) return (
-                        <div className="card" style={{ textAlign: "center" }}>No played songs yet</div>
-                      );
+                      if (done.length === 0) return <div className="card" style={{ textAlign:"center" }}>No played songs yet</div>;
                       return [...done].reverse().map((req, i) => (
-                        <div key={req.fbKey || i} className="card" style={{ padding: "14px 18px" }}>
-                          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                            {!!req.thumb && (
-                              <img src={req.thumb} alt="" style={{ width: 72, height: 40, borderRadius: 7, objectFit: "cover", flexShrink: 0 }}
-                                onError={(e) => (e.currentTarget.style.display = "none")} />
-                            )}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: "bold", fontSize: ".88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.title}</div>
-                              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: ".75rem", marginTop: 3 }}>🎤 {req.singer} · Table {req.table}</div>
+                        <div key={req.fbKey || i} className="card" style={{ padding:"14px 18px" }}>
+                          <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
+                            {!!req.thumb && <img src={req.thumb} alt="" style={{ width:72, height:40, borderRadius:7, objectFit:"cover", flexShrink:0 }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontWeight:"bold", fontSize:".88rem", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{req.title}</div>
+                              <div style={{ color:"rgba(255,255,255,0.45)", fontSize:".75rem", marginTop:3 }}>🎤 {req.singer} · Table {req.table}</div>
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <button className="btn btn-p"
-                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#ff6600,#cc3300)" }}
-                              onClick={() => playNow(req)} disabled={!!workingId}>
-                              ▶ Play Now
-                            </button>
-                            <button className="btn btn-p"
-                              style={{ padding: "7px 14px", fontSize: ".82rem", background: "linear-gradient(135deg,#00aaff,#0055cc)" }}
-                              onClick={() => requeueSong(req)} disabled={!!workingId}>
-                              ➕ Add to Queue
-                            </button>
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                            <button className="btn btn-p" style={{ padding:"7px 14px", fontSize:".82rem", background:"linear-gradient(135deg,#ff6600,#cc3300)" }} onClick={() => playNow(req)} disabled={!!workingId}>▶ Play Now</button>
+                            <button className="btn btn-p" style={{ padding:"7px 14px", fontSize:".82rem", background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => requeueSong(req)} disabled={!!workingId}>➕ Add to Queue</button>
                           </div>
                         </div>
                       ));
@@ -1512,22 +1128,14 @@ export default function App() {
                   <div className="card">
                     {currentSong ? (
                       <>
-                        <h3 style={{ marginTop: 0, color: "#00cc66" }}>Now Playing</h3>
-                        <div style={{ fontWeight: "bold", marginBottom: 6 }}>{currentSong.title}</div>
-                        <div style={{ color: "rgba(255,255,255,.55)", marginBottom: 12 }}>
-                          🎤 {currentSong.singer} · Table {currentSong.table}
-                        </div>
+                        <h3 style={{ marginTop:0, color:"#00cc66" }}>Now Playing</h3>
+                        <div style={{ fontWeight:"bold", marginBottom:6 }}>{currentSong.title}</div>
+                        <div style={{ color:"rgba(255,255,255,.55)", marginBottom:12 }}>🎤 {currentSong.singer} · Table {currentSong.table}</div>
                         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                          <button className="btn-r" onClick={stopSong} disabled={workingId === "__stop__"}>
-                            ⏹ Stop
-                          </button>
-                          <button className="btn btn-p" style={{padding:"8px 16px",fontSize:".85rem"}} onClick={restartSong} disabled={workingId === "__restart__"}>
-                            🔄 Restart
-                          </button>
+                          <button className="btn-r" onClick={stopSong} disabled={workingId === "__stop__"}>⏹ Stop</button>
+                          <button className="btn btn-p" style={{ padding:"8px 16px", fontSize:".85rem" }} onClick={restartSong} disabled={workingId === "__restart__"}>🔄 Restart</button>
                           {queue.length > 0 && (
-                            <button className="btn btn-p" style={{padding:"8px 16px",fontSize:".85rem",background:"linear-gradient(135deg,#00cc66,#009944)"}} onClick={() => playSong(queue[0])} disabled={!!workingId}>
-                              ⏭ Next
-                            </button>
+                            <button className="btn btn-p" style={{ padding:"8px 16px", fontSize:".85rem", background:"linear-gradient(135deg,#00cc66,#009944)" }} onClick={() => playSong(queue[0])} disabled={!!workingId}>⏭ Next</button>
                           )}
                         </div>
                       </>
