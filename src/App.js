@@ -30,17 +30,17 @@ const db = getDatabase(firebaseApp);
 // CONFIG
 // ==============================
 const YT_API_KEYS = [
-  "AIzaSyAg-83L9M6WtTFP942wcyamiVs57Ilt-t0",
-  "AIzaSyBDWAwcmx9Joj-P4LQFyHtfcPl29YkeJwA",
-  "AIzaSyBT6FpIzrn82QYjU6bCz2EOgABYwVcv-as",
-  "AIzaSyBz6HunwtgBKM0vQCMNdv-5g49t07_QCMs",
-  "AIzaSyA0KETYD9a_IMD2QqG0tjiGBsRj12_xKQE",
-  "AIzaSyB59655MS_mn4uRDEii7ukgnipYe6WzY9g",
-];
+  process.env.REACT_APP_YT_KEY_1,
+  process.env.REACT_APP_YT_KEY_2,
+  process.env.REACT_APP_YT_KEY_3,
+  process.env.REACT_APP_YT_KEY_4,
+  process.env.REACT_APP_YT_KEY_5,
+  process.env.REACT_APP_YT_KEY_6,
+].filter(Boolean);
 let currentKeyIndex = 0;
 function getYTKey() { return YT_API_KEYS[currentKeyIndex]; }
 function rotateYTKey() { currentKeyIndex = (currentKeyIndex + 1) % YT_API_KEYS.length; }
-const ADMIN_PASSWORD = "karaoke2024";
+const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "karaoke2024";
 const TABLES = [1, 2, 3, 4, 5, 6];
 
 // ==============================
