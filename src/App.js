@@ -572,6 +572,14 @@ export default function App() {
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const longPressTimer = useRef(null);
+  const isDragging = useRef(false);
+
+  // Bloquea el scroll de la página cuando está activo el drag
+  useEffect(() => {
+    const prevent = (e) => { if (isDragging.current) e.preventDefault(); };
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
+  }, []);
 
   const reorderQueue = async (fromIndex, toIndex) => {
     if (fromIndex === toIndex) return;
@@ -1077,28 +1085,30 @@ export default function App() {
                             }}
                             onTouchStart={(e) => {
                               longPressTimer.current = setTimeout(() => {
+                                isDragging.current = true;
                                 setDragIndex(index);
-                                if (navigator.vibrate) navigator.vibrate(50);
+                                if (navigator.vibrate) navigator.vibrate(60);
                               }, 500);
                             }}
                             onTouchMove={(e) => {
-                              if (dragIndex === null) {
+                              if (!isDragging.current) {
                                 clearTimeout(longPressTimer.current);
                                 return;
                               }
                               const touch = e.touches[0];
                               const els = document.elementsFromPoint(touch.clientX, touch.clientY);
-                              const cardEl = els.find(el => el.dataset.qindex !== undefined);
+                              const cardEl = els.find(el => el.dataset && el.dataset.qindex !== undefined);
                               if (cardEl) {
                                 const over = parseInt(cardEl.dataset.qindex);
-                                if (over !== dragOverIndex) setDragOverIndex(over);
+                                if (!isNaN(over) && over !== dragOverIndex) setDragOverIndex(over);
                               }
                             }}
                             onTouchEnd={() => {
                               clearTimeout(longPressTimer.current);
-                              if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+                              if (isDragging.current && dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
                                 reorderQueue(dragIndex, dragOverIndex);
                               }
+                              isDragging.current = false;
                               setDragIndex(null);
                               setDragOverIndex(null);
                             }}
