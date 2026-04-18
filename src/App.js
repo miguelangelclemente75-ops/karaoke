@@ -1247,7 +1247,7 @@ export default function App() {
                           Promise.all([
                             fetch("http://192.168.3.13:3500/api/tv/9/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=tv" }) }),
                             fetch("http://192.168.3.13:3500/api/tv/8/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=nextup" }) })
-                          ]).then(() => alert("✅ Karaoke Night Started!")).catch(() => alert("❌ Error — check server"));
+                          ]).then(() => toast$("🎤 Karaoke Night Started!")).catch(() => toast$("❌ Error — check server", "err"));
                         }}>
                         🎤 Start Karaoke Night
                       </button>
@@ -1257,9 +1257,9 @@ export default function App() {
                       <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:".95rem", letterSpacing:1 }}>🎤 Karaoke Main TV</h3>
                       <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:12 }}>IP 192.168.3.116 — Fire TV</p>
                       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=tv" }) }).then(r => r.json()).then(() => alert("✅ Karaoke Screen opened!")).catch(() => alert("❌ Error — check server"))}>🎤 Karaoke Screen</button>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/youtube", { method:"POST" }).then(() => alert("✅ YouTube opened!")).catch(() => alert("❌ Error"))}>▶ YouTube</button>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => alert("✅ Home sent!")).catch(() => alert("❌ Error"))}>🏠 Home</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=tv" }) }).then(() => toast$("🎤 Karaoke Screen opened!")).catch(() => toast$("❌ Error", "err"))}>🎤 Karaoke Screen</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/youtube", { method:"POST" }).then(() => toast$("✅ YouTube opened!")).catch(() => toast$("❌ Error", "err"))}>▶ YouTube</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/9/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => toast$("✅ Home sent!")).catch(() => toast$("❌ Error", "err"))}>🏠 Home</button>
                       </div>
                     </div>
 
@@ -1267,9 +1267,9 @@ export default function App() {
                       <h3 style={{ marginTop:0, color:"#00ccff", fontSize:".95rem", letterSpacing:1 }}>📋 Karaoke Queue TV</h3>
                       <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:12 }}>IP 192.168.3.64 — Fire TV</p>
                       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=nextup" }) }).then(() => alert("✅ Queue Screen opened!")).catch(() => alert("❌ Error"))}>📋 Queue Screen</button>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/youtube", { method:"POST" }).then(() => alert("✅ YouTube opened!")).catch(() => alert("❌ Error"))}>▶ YouTube</button>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => alert("✅ Home sent!")).catch(() => alert("❌ Error"))}>🏠 Home</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/launch-url", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ url:"https://karaoke-coral-seven.vercel.app/?modo=nextup" }) }).then(() => toast$("📋 Queue Screen opened!")).catch(() => toast$("❌ Error", "err"))}>📋 Queue Screen</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/youtube", { method:"POST" }).then(() => toast$("✅ YouTube opened!")).catch(() => toast$("❌ Error", "err"))}>▶ YouTube</button>
+                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#555,#333)" }} onClick={() => fetch("http://192.168.3.13:3500/api/tv/8/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"Home" }) }).then(() => toast$("✅ Home sent!")).catch(() => toast$("❌ Error", "err"))}>🏠 Home</button>
                       </div>
                     </div>
 
