@@ -179,36 +179,59 @@ function TVPlayer({ song, nextSong, onSongEnded }) {
 
   // YouTube IFrame API — detectar cuando termina el video
   useEffect(() => {
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
+    // Cargar script de la API si no está
     if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
     }
 
-    const onReady = () => {
-      if (!playerRef.current) return;
-      window._ytPlayer = new window.YT.Player(playerRef.current, {
-        events: {
-          onStateChange: (e) => {
-            if (e.data === window.YT.PlayerState.ENDED) {
-              onSongEnded && onSongEnded();
-            }
+    let player = null;
+    let pollTimer = null;
+    let endedFired = false;
+
+    const setupPlayer = () => {
+      if (!playerRef.current || !window.YT || !window.YT.Player) return;
+      try {
+        player = new window.YT.Player(playerRef.current, {
+          events: {
+            onReady: () => {
+              // Polling cada 3 segundos como respaldo
+              pollTimer = setInterval(() => {
+                try {
+                  const state = player.getPlayerState();
+                  // 0 = ended, -1 = unstarted (no ha cargado aun lo ignoramos)
+                  if (state === 0 && !endedFired) {
+                    endedFired = true;
+                    onSongEnded && onSongEnded();
+                  }
+                } catch {}
+              }, 3000);
+            },
+            onStateChange: (e) => {
+              if (e.data === 0 && !endedFired) {
+                endedFired = true;
+                onSongEnded && onSongEnded();
+              }
+            },
           },
-        },
-      });
+        });
+      } catch {}
     };
 
     if (window.YT && window.YT.Player) {
-      onReady();
+      setupPlayer();
     } else {
-      window.onYouTubeIframeAPIReady = onReady;
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prev) prev();
+        setupPlayer();
+      };
     }
 
     return () => {
-      if (window._ytPlayer) {
-        try { window._ytPlayer.destroy(); } catch {}
-        window._ytPlayer = null;
-      }
+      clearInterval(pollTimer);
+      try { if (player) player.destroy(); } catch {}
     };
   }, [song?.videoId, song?.startedAt]);
 
@@ -1250,14 +1273,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="card" style={{ background:"rgba(255,0,255,.06)", border:"1px solid rgba(255,0,255,.2)" }}>
-                      <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:".95rem", letterSpacing:1 }}>📺 All TVs</h3>
-                      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#ff0000,#cc0000)" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/youtube", { method:"POST" }).then(() => alert("✅ YouTube on all TVs!")).catch(() => alert("❌ Error"))}>▶ YouTube All</button>
-                        <button className="btn btn-p" style={{ padding:"10px 18px", fontSize:".85rem", background:"linear-gradient(135deg,#00cc66,#009944)" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"PowerOn" }) }).then(() => alert("✅ Power On all!")).catch(() => alert("❌ Error"))}>⚡ Power On All</button>
-                        <button className="btn-r" style={{ padding:"10px 18px" }} onClick={() => fetch("http://192.168.3.13:3500/api/all/command", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ command:"PowerOff" }) }).then(() => alert("✅ Power Off all!")).catch(() => alert("❌ Error"))}>⏻ Power Off All</button>
-                      </div>
-                    </div>
+
                   </div>
                 )}
 
