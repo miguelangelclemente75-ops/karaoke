@@ -566,6 +566,33 @@ export default function App() {
     }
   };
 
+  // ══════════════════════════════════════════════════════════
+  // REORDER QUEUE — drag & drop con long press
+  // ══════════════════════════════════════════════════════════
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const longPressTimer = useRef(null);
+
+  const reorderQueue = async (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const newQueue = [...queue];
+    const [moved] = newQueue.splice(fromIndex, 1);
+    newQueue.splice(toIndex, 0, moved);
+
+    // Reasignar timestamps para mantener el orden en Firebase
+    const now = Date.now();
+    const updates = {};
+    newQueue.forEach((item, i) => {
+      updates[`queue/${item.fbKey}/timestamp`] = now + i;
+    });
+    try {
+      await update(ref(db), updates);
+      toast$("↕ Queue reordered!");
+    } catch {
+      toast$("Could not reorder queue", "err");
+    }
+  };
+
   const loginAdmin = () => {
     if (adminPwd === ADMIN_PASSWORD) {
       setAdminOk(true);
@@ -1032,23 +1059,75 @@ export default function App() {
                     {queue.length === 0 ? (
                       <div className="card" style={{ textAlign:"center" }}>Queue is empty</div>
                     ) : (
-                      queue.map((entry, index) => (
-                        <div key={entry.fbKey} className="card">
-                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-                            <div style={{ fontSize:"1.2rem", width:24, textAlign:"center" }}>{index + 1}</div>
-                            {!!entry.thumb && <img src={entry.thumb} alt="" style={{ width:90, height:50, borderRadius:8, objectFit:"cover" }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontWeight:"bold", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.title}</div>
-                              <div style={{ color:"rgba(255,255,255,.55)", fontSize:".8rem" }}>🎤 {entry.singer} · Table {entry.table}</div>
+                      <>
+                        <p style={{ color:"rgba(255,255,255,0.35)", fontSize:".75rem", margin:"0 0 4px", textAlign:"center" }}>
+                          ✋ Mantén apretado un item para reordenar
+                        </p>
+                        {queue.map((entry, index) => (
+                          <div
+                            key={entry.fbKey}
+                            className="card"
+                            style={{
+                              opacity: dragIndex === index ? 0.4 : 1,
+                              border: dragOverIndex === index ? "2px solid #ff00ff" : undefined,
+                              transform: dragOverIndex === index ? "scale(1.02)" : undefined,
+                              transition: "all 0.15s ease",
+                              cursor: dragIndex !== null ? "grabbing" : "default",
+                              userSelect: "none",
+                            }}
+                            onTouchStart={(e) => {
+                              longPressTimer.current = setTimeout(() => {
+                                setDragIndex(index);
+                                if (navigator.vibrate) navigator.vibrate(50);
+                              }, 500);
+                            }}
+                            onTouchMove={(e) => {
+                              if (dragIndex === null) {
+                                clearTimeout(longPressTimer.current);
+                                return;
+                              }
+                              const touch = e.touches[0];
+                              const els = document.elementsFromPoint(touch.clientX, touch.clientY);
+                              const cardEl = els.find(el => el.dataset.qindex !== undefined);
+                              if (cardEl) {
+                                const over = parseInt(cardEl.dataset.qindex);
+                                if (over !== dragOverIndex) setDragOverIndex(over);
+                              }
+                            }}
+                            onTouchEnd={() => {
+                              clearTimeout(longPressTimer.current);
+                              if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+                                reorderQueue(dragIndex, dragOverIndex);
+                              }
+                              setDragIndex(null);
+                              setDragOverIndex(null);
+                            }}
+                            data-qindex={index}
+                          >
+                            <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                              {/* Handle de drag */}
+                              <div style={{ fontSize:"1.1rem", color:"rgba(255,255,255,0.3)", flexShrink:0, cursor:"grab" }}>☰</div>
+                              <div style={{ fontSize:"1.2rem", width:24, textAlign:"center" }}>{index + 1}</div>
+                              {!!entry.thumb && <img src={entry.thumb} alt="" style={{ width:90, height:50, borderRadius:8, objectFit:"cover" }} onError={(e) => (e.currentTarget.style.display = "none")}/>}
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontWeight:"bold", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.title}</div>
+                                <div style={{ color:"rgba(255,255,255,.55)", fontSize:".8rem" }}>🎤 {entry.singer} · Table {entry.table}</div>
+                              </div>
+                            </div>
+                            <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                              <button className="btn btn-p" onClick={() => playSong(entry)} disabled={!!workingId}>▶ Play</button>
+                              <button className="btn btn-p" style={{ background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => requeueSong(entry)} disabled={!!workingId}>🔁 Repeat</button>
+                              <button className="btn-r" onClick={() => removeQ(entry)} disabled={workingId === entry.fbKey}>✕ Remove</button>
+                              {index > 0 && (
+                                <button className="btn btn-p" style={{ background:"linear-gradient(135deg,#666,#444)", padding:"8px 12px" }} onClick={() => reorderQueue(index, index - 1)} disabled={!!workingId}>⬆</button>
+                              )}
+                              {index < queue.length - 1 && (
+                                <button className="btn btn-p" style={{ background:"linear-gradient(135deg,#666,#444)", padding:"8px 12px" }} onClick={() => reorderQueue(index, index + 1)} disabled={!!workingId}>⬇</button>
+                              )}
                             </div>
                           </div>
-                          <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
-                            <button className="btn btn-p" onClick={() => playSong(entry)} disabled={!!workingId}>▶ Play</button>
-                            <button className="btn btn-p" style={{ background:"linear-gradient(135deg,#00aaff,#0055cc)" }} onClick={() => requeueSong(entry)} disabled={!!workingId}>🔁 Repeat</button>
-                            <button className="btn-r" onClick={() => removeQ(entry)} disabled={workingId === entry.fbKey}>✕ Remove</button>
-                          </div>
-                        </div>
-                      ))
+                        ))}
+                      </>
                     )}
                   </div>
                 )}
