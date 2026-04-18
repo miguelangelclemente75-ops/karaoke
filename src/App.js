@@ -1111,12 +1111,16 @@ export default function App() {
                                 return;
                               }
                               const touch = e.touches[0];
-                              const screenH = window.innerHeight;
                               const ZONE = 120;
-                              // Auto-scroll cuando el dedo está cerca del borde
-                              if (touch.clientY > screenH - ZONE) {
+                              // Usar posición del contenedor para detectar bordes
+                              const container = queueListRef.current;
+                              const rect = container ? container.getBoundingClientRect() : null;
+                              const topEdge = rect ? rect.top + ZONE : ZONE;
+                              const bottomEdge = rect ? rect.bottom - ZONE : window.innerHeight - ZONE;
+                              // Auto-scroll cuando el dedo está cerca del borde del contenedor
+                              if (touch.clientY > bottomEdge) {
                                 startAutoScroll(1);
-                              } else if (touch.clientY < ZONE) {
+                              } else if (touch.clientY < topEdge) {
                                 startAutoScroll(-1);
                               } else {
                                 stopAutoScroll();
