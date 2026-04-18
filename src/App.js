@@ -573,6 +573,8 @@ export default function App() {
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const longPressTimer = useRef(null);
   const isDragging = useRef(false);
+  const queueListRef = useRef(null);
+  const autoScrollTimer = useRef(null);
 
   // Bloquea el scroll de la página cuando está activo el drag
   useEffect(() => {
@@ -580,6 +582,18 @@ export default function App() {
     document.addEventListener("touchmove", prevent, { passive: false });
     return () => document.removeEventListener("touchmove", prevent);
   }, []);
+
+  const startAutoScroll = (direction) => {
+    if (autoScrollTimer.current) return;
+    autoScrollTimer.current = setInterval(() => {
+      if (queueListRef.current) queueListRef.current.scrollTop += direction * 8;
+    }, 16);
+  };
+
+  const stopAutoScroll = () => {
+    clearInterval(autoScrollTimer.current);
+    autoScrollTimer.current = null;
+  };
 
   const reorderQueue = async (fromIndex, toIndex) => {
     if (fromIndex === toIndex) return;
@@ -1071,6 +1085,7 @@ export default function App() {
                         <p style={{ color:"rgba(255,255,255,0.35)", fontSize:".75rem", margin:"0 0 4px", textAlign:"center" }}>
                           ✋ Mantén apretado un item para reordenar
                         </p>
+                        <div ref={queueListRef} style={{ overflowY:"auto", maxHeight:"60vh" }}>
                         {queue.map((entry, index) => (
                           <div
                             key={entry.fbKey}
@@ -1096,6 +1111,17 @@ export default function App() {
                                 return;
                               }
                               const touch = e.touches[0];
+                              const screenH = window.innerHeight;
+                              const ZONE = 120;
+                              // Auto-scroll cuando el dedo está cerca del borde
+                              if (touch.clientY > screenH - ZONE) {
+                                startAutoScroll(1);
+                              } else if (touch.clientY < ZONE) {
+                                startAutoScroll(-1);
+                              } else {
+                                stopAutoScroll();
+                              }
+                              // Detectar sobre qué card está el dedo
                               const els = document.elementsFromPoint(touch.clientX, touch.clientY);
                               const cardEl = els.find(el => el.dataset && el.dataset.qindex !== undefined);
                               if (cardEl) {
@@ -1105,6 +1131,7 @@ export default function App() {
                             }}
                             onTouchEnd={() => {
                               clearTimeout(longPressTimer.current);
+                              stopAutoScroll();
                               if (isDragging.current && dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
                                 reorderQueue(dragIndex, dragOverIndex);
                               }
@@ -1137,6 +1164,7 @@ export default function App() {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </>
                     )}
                   </div>
