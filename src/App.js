@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import TVPlayer from "./TVPlayer";
 import { initializeApp } from "firebase/app";
 import {
@@ -83,8 +84,17 @@ function safeTable(value) {
 function getRuntimeParams() {
   if (typeof window === "undefined") return { isTVMode: false, isDJMode: false, tableFromURL: null };
   const urlParams = new URLSearchParams(window.location.search);
+  const modo = urlParams.get("modo");
+  const isNative = Capacitor.isNativePlatform();
+
+  let isTVMode = modo === "tv" || modo === "nextup";
+  if (!isTVMode && isNative) {
+    const openAsClient = modo === "client" || urlParams.get("cliente") === "1";
+    isTVMode = !openAsClient;
+  }
+
   return {
-    isTVMode: urlParams.get("modo") === "tv",
+    isTVMode,
     isDJMode: urlParams.get("dj") === "1",
     tableFromURL: safeTable(urlParams.get("mesa")),
   };
