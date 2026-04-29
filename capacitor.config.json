@@ -3,9 +3,16 @@
   "appName": "Hurricane Karaoke",
   "webDir": "build",
   "server": {
-    "androidScheme": "https"
+    "url": "https://karaoke-coral-seven.vercel.app",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "https://karaoke-coral-seven.vercel.app/*",
+      "https://*.youtube.com/*",
+      "https://*.googlevideo.com/*",
+      "https://*.ytimg.com/*"
+    ]
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": true
   }
 }
