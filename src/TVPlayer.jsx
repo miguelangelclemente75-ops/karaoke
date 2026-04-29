@@ -39,16 +39,18 @@ function loadYoutubeIframeAPI() {
  * TV / Fire TV: un solo camino — YT.Player crea el iframe internamente.
  * Evita el bug de pantalla negra por iframe con src + YT.Player al mismo tiempo.
  */
+const YT_PS = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
+
 export default function TVPlayer({ song, nextSong, onSongEnded }) {
   const mountRef = useRef(null);
   const ytRef = useRef(null);
   const pollRef = useRef(null);
   const onSongEndedRef = useRef(onSongEnded);
+  const loadFallbackTimerRef = useRef(null);
+  const playRetryTimersRef = useRef([]);
   onSongEndedRef.current = onSongEnded;
 
   const endedSentRef = useRef(false);
-  const lastStartedRef = useRef(null);
-  const lastVideoForStartRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [recoverTick, setRecoverTick] = useState(0);
@@ -63,7 +65,53 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
     let cancelled = false;
     let player = null;
 
+    const clearPlayRetries = () => {
+      playRetryTimersRef.current.forEach((t) => clearTimeout(t));
+      playRetryTimersRef.current = [];
+    };
+
+    const schedulePlayRetries = (target) => {
+      clearPlayRetries();
+      const tryPlay = () => {
+        if (cancelled || !target) return;
+        try {
+          target.playVideo();
+        } catch (e) {
+          /* ignore */
+        }
+      };
+      [120, 450, 1000, 2200].forEach((ms) => {
+        playRetryTimersRef.current.push(
+          setTimeout(() => {
+            if (cancelled) return;
+            try {
+              const st =
+                typeof target.getPlayerState === "function"
+                  ? target.getPlayerState()
+                  : -1;
+              if (st !== YT_PS.PLAYING && st !== YT_PS.BUFFERING) {
+                tryPlay();
+                if (
+                  typeof target.loadVideoById === "function" &&
+                  song?.videoId
+                ) {
+                  target.loadVideoById(song.videoId, 0);
+                }
+              }
+            } catch (e) {
+              tryPlay();
+            }
+          }, ms)
+        );
+      });
+    };
+
     const cleanup = () => {
+      clearPlayRetries();
+      if (loadFallbackTimerRef.current) {
+        clearTimeout(loadFallbackTimerRef.current);
+        loadFallbackTimerRef.current = null;
+      }
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -104,6 +152,10 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
       cleanup();
       mountRef.current.innerHTML = "";
 
+      await new Promise((r) => setTimeout(r, 120));
+
+      if (cancelled || !mountRef.current) return;
+
       const origin =
         typeof window !== "undefined" && window.location?.origin
           ? window.location.origin
@@ -131,11 +183,27 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
               } catch (e) {
                 /* ignore */
               }
-              setLoading(false);
+              schedulePlayRetries(ev.target);
+              if (loadFallbackTimerRef.current)
+                clearTimeout(loadFallbackTimerRef.current);
+              loadFallbackTimerRef.current = setTimeout(() => {
+                if (cancelled) return;
+                setLoading(false);
+              }, 9000);
             },
             onStateChange: (ev) => {
               if (cancelled) return;
-              if (ev.data === 0) notifyEnd();
+              if (
+                ev.data === YT_PS.PLAYING ||
+                ev.data === YT_PS.BUFFERING
+              ) {
+                if (loadFallbackTimerRef.current) {
+                  clearTimeout(loadFallbackTimerRef.current);
+                  loadFallbackTimerRef.current = null;
+                }
+                setLoading(false);
+              }
+              if (ev.data === YT_PS.ENDED) notifyEnd();
             },
             onError: () => {
               if (cancelled) return;
@@ -144,54 +212,30 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
             },
           },
         });
+        if (!cancelled) {
+          pollRef.current = setInterval(() => {
+            try {
+              const p = ytRef.current;
+              if (!p || typeof p.getPlayerState !== "function") return;
+              if (p.getPlayerState() === YT_PS.ENDED) notifyEnd();
+            } catch (e) {
+              if (!cancelled) {
+                setLoading(true);
+                bumpRecover();
+              }
+            }
+          }, 2500);
+        }
       } catch (e) {
         if (!cancelled) bumpRecover();
       }
     })();
-
-    pollRef.current = setInterval(() => {
-      try {
-        const p = ytRef.current;
-        if (!p || typeof p.getPlayerState !== "function") return;
-        if (p.getPlayerState() === 0) notifyEnd();
-      } catch (e) {
-        if (!cancelled) {
-          setLoading(true);
-          bumpRecover();
-        }
-      }
-    }, 2500);
 
     return () => {
       cancelled = true;
       cleanup();
     };
   }, [song?.videoId, recoverTick, bumpRecover]);
-
-  // DJ "Restart": mismo videoId, startedAt nuevo → seek sin destruir el player.
-  useEffect(() => {
-    if (!song?.videoId || song.startedAt == null) return;
-    if (lastVideoForStartRef.current !== song.videoId) {
-      lastVideoForStartRef.current = song.videoId;
-      lastStartedRef.current = song.startedAt;
-      return;
-    }
-    const prev = lastStartedRef.current;
-    lastStartedRef.current = song.startedAt;
-    if (prev == null || prev === song.startedAt) return;
-
-    const p = ytRef.current;
-    if (p && typeof p.seekTo === "function") {
-      try {
-        endedSentRef.current = false;
-        p.seekTo(0, true);
-        p.playVideo();
-        setLoading(false);
-      } catch (e) {
-        bumpRecover();
-      }
-    }
-  }, [song?.startedAt, song?.videoId, bumpRecover]);
 
   useEffect(() => {
     const onVis = () => {

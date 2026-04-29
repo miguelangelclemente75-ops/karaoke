@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TVPlayer from "./TVPlayer";
 import { initializeApp } from "firebase/app";
 import {
@@ -40,6 +40,7 @@ function rotateYTKey() {
 }
 const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "karaoke2024";
 const TABLES = [1, 2, 3, 4, 5, 6];
+const TV_CONTROL_SERVER = process.env.REACT_APP_TV_CONTROL_SERVER || "http://192.168.3.13:3500";
 
 const css = `
   @keyframes floatNote{0%{transform:translateY(100vh) rotate(0deg);opacity:0}10%{opacity:.15}90%{opacity:.08}100%{transform:translateY(-80px) rotate(360deg);opacity:0}}
@@ -89,6 +90,16 @@ function getRuntimeParams() {
   };
 }
 
+/** Excluye vídeos que la API marque como no embebibles o no aptos para reproducción en web de terceros. */
+function isOkForWebEmbed(item) {
+  const st = item?.status;
+  if (!st || !item?.id) return false;
+  if (st.embeddable !== true) return false;
+  if (st.privacyStatus === "private") return false;
+  if (st.uploadStatus && st.uploadStatus !== "processed") return false;
+  return true;
+}
+
 async function searchYT(query) {
   if (!YT_API_KEYS.length) {
     throw new Error("No YouTube API keys configured");
@@ -97,7 +108,7 @@ async function searchYT(query) {
   for (let attempt = 0; attempt < YT_API_KEYS.length; attempt++) {
     const key = getYTKey();
     try {
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${key}`;
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=40&key=${key}`;
       const res = await fetch(searchUrl);
       if (!res.ok) { rotateYTKey(); continue; }
       const data = await res.json();
@@ -105,13 +116,13 @@ async function searchYT(query) {
       if (!Array.isArray(data.items) || data.items.length === 0) return [];
       const ids = data.items.map((item) => item?.id?.videoId).filter(Boolean).join(",");
       if (!ids) return [];
-      const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet&id=${ids}&key=${key}`;
+      const detailUrl = `https://www.googleapis.com/youtube/v3/videos?part=status,snippet,contentDetails&id=${ids}&key=${key}`;
       const detailRes = await fetch(detailUrl);
       if (!detailRes.ok) throw new Error("YouTube details failed");
       const detailData = await detailRes.json();
       return (detailData.items || [])
-        .filter((item) => item?.status?.embeddable && item?.id)
-        .slice(0, 6)
+        .filter(isOkForWebEmbed)
+        .slice(0, 10)
         .map((item) => ({
           id: item.id,
           title: item?.snippet?.title || "Untitled",
@@ -154,6 +165,19 @@ export default function App() {
     setToast({ msg, type });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  const postTvControl = useCallback(async (path) => {
+    const res = await fetch(`${TV_CONTROL_SERVER}${path}`, { method: "POST" });
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch { /* */ }
+    if (!res.ok) {
+      const message = payload?.error || payload?.message || `HTTP ${res.status}`;
+      throw new Error(message);
+    }
+    return payload;
   }, []);
 
   useEffect(() => { return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }; }, []);
@@ -199,25 +223,42 @@ export default function App() {
     finally { setSearching(false); }
   };
 
-  const submitReq = async () => {
+  const submitRequestForVideo = async (video) => {
     if (submitting) return;
-    if (!name.trim()) return toast$("Please enter your name", "err");
-    if (!table && tableFromURL === null) return toast$("Please select your table", "err");
-    if (!pickedVideo) return toast$("Please choose a video first", "err");
+    if (!name.trim()) {
+      if (video) setPickedVideo(video);
+      return toast$("Please enter your name", "err");
+    }
+    if (!table && tableFromURL === null) {
+      if (video) setPickedVideo(video);
+      return toast$("Please select your table", "err");
+    }
+    if (!video?.id) return toast$("Please choose a video first", "err");
     const normalizedName = name.trim();
     const finalTable = tableFromURL ?? table;
-    const duplicatePending = pending.some((p) => p.videoId===pickedVideo.id && p.singer?.toLowerCase()===normalizedName.toLowerCase() && p.table===finalTable);
-    const duplicateQueued = queue.some((q) => q.videoId===pickedVideo.id && q.singer?.toLowerCase()===normalizedName.toLowerCase() && q.table===finalTable);
+    const duplicatePending = pending.some((p) => p.videoId===video.id && p.singer?.toLowerCase()===normalizedName.toLowerCase() && p.table===finalTable);
+    const duplicateQueued = queue.some((q) => q.videoId===video.id && q.singer?.toLowerCase()===normalizedName.toLowerCase() && q.table===finalTable);
     if (duplicatePending || duplicateQueued) return toast$("This song is already in progress for you", "err");
     setSubmitting(true);
     try {
-      const req = { title:pickedVideo.title, author:pickedVideo.author, videoId:pickedVideo.id, thumb:pickedVideo.thumb, singer:normalizedName, table:finalTable, status:"pending", timestamp:Date.now() };
+      const req = { title:video.title, author:video.author, videoId:video.id, thumb:video.thumb, singer:normalizedName, table:finalTable, status:"pending", timestamp:Date.now() };
       const newRef = await push(ref(db, "pending"), req);
       setMyReqs((prev) => [...prev, { ...req, fbKey:newRef.key }]);
       setSongQ(""); setYtResults([]); setPickedVideo(null); setView("mystatus");
       toast$("🎤 Request sent — waiting for DJ approval!");
     } catch { toast$("Could not send the request", "err"); }
     finally { setSubmitting(false); }
+  };
+
+  const submitReq = async () => submitRequestForVideo(pickedVideo);
+
+  const onPickSearchResult = (v) => {
+    setPickedVideo(v);
+    const hasName = !!name.trim();
+    const hasTable = tableFromURL !== null || !!table;
+    if (hasName && hasTable) {
+      void submitRequestForVideo(v);
+    }
   };
 
   const approve = async (req) => {
@@ -400,7 +441,12 @@ export default function App() {
       <div style={{ width:"100vw", height:"100vh", background:"#000", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"Georgia,serif" }}>
         <style>{css}</style>
         {currentSong ? (
-          <TVPlayer song={currentSong} nextSong={queue[0]||null} onSongEnded={async () => { try { await set(ref(db, "current"), null); } catch {} }} />
+          <TVPlayer
+            key={`tv-${currentSong.videoId}-${currentSong.startedAt ?? currentSong.queueKey ?? "play"}`}
+            song={currentSong}
+            nextSong={queue[0]||null}
+            onSongEnded={async () => { try { await set(ref(db, "current"), null); } catch {} }}
+          />
         ) : (
           <div style={{ textAlign:"center", color:"#fff" }}>
             <div style={{ fontSize:"6rem", marginBottom:20 }}>🎤</div>
@@ -424,7 +470,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#08001a 0%,#160030 50%,#0a0018 100%)", fontFamily:"Georgia,serif", color:"#fff", position:"relative", overflow:"hidden" }}>
+    <div className="app-shell" style={{ minHeight:"100dvh", background:"linear-gradient(135deg,#08001a 0%,#160030 50%,#0a0018 100%)", fontFamily:"Georgia,serif", color:"#fff", position:"relative", overflowX:"hidden" }}>
       <style>{css}</style>
       {notes.map((n, i) => (<div key={i} className="fn" style={{ left:n.left, animationDelay:n.delay, fontSize:n.size, opacity:n.op }}>♪</div>))}
       {toast && (
@@ -518,24 +564,29 @@ export default function App() {
             )}
             {!searching && !ytFailed && ytResults.length > 0 && (
               <div style={{ marginBottom:14 }}>
-                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".8rem", marginBottom:10 }}>{pickedVideo?"✅ Video selected — you can change it or send the request:":"Choose the karaoke video you want to sing:"}</p>
+                <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".8rem", marginBottom:10 }}>
+                  {name.trim() && (tableFromURL !== null || table)
+                    ? "Tap a video to send it to the DJ (only shows videos allowed for web playback):"
+                    : "Choose a video (complete name and table in Home to send in one tap):"}
+                </p>
                 <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14 }}>
                   {ytResults.map((v) => (
-                    <div key={v.id} className={`vcard ${pickedVideo?.id===v.id?"sel":""}`} onClick={() => setPickedVideo(v)}>
+                    <div key={v.id} className={`vcard ${pickedVideo?.id===v.id?"sel":""}`} onClick={() => onPickSearchResult(v)}>
                       {!!v.thumb && <img src={v.thumb} alt="" style={{ width:80, height:45, borderRadius:8, objectFit:"cover", flexShrink:0 }} onError={(e) => (e.currentTarget.style.display="none")}/>}
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontWeight:"bold", fontSize:".82rem", lineHeight:1.3, marginBottom:3, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{v.title}</div>
                         <div style={{ color:"rgba(255,255,255,0.4)", fontSize:".72rem" }}>{v.author}</div>
                       </div>
-                      {pickedVideo?.id===v.id ? <span style={{ fontSize:"1.3rem", flexShrink:0 }}>✅</span> : <span style={{ fontSize:".75rem", color:"rgba(255,255,255,0.35)", flexShrink:0 }}>Select</span>}
+                      {pickedVideo?.id===v.id ? <span style={{ fontSize:"1.3rem", flexShrink:0 }}>✅</span> : <span style={{ fontSize:".75rem", color:"rgba(255,255,255,0.35)", flexShrink:0 }}>{name.trim() && (tableFromURL !== null || table) ? "Send" : "Select"}</span>}
                     </div>
                   ))}
                 </div>
-                {pickedVideo && (
+                {pickedVideo && (!name.trim() || (tableFromURL === null && !table)) && (
                   <div style={{ textAlign:"center" }}>
                     <div className="card-green" style={{ marginBottom:12, textAlign:"left" }}>
                       <p style={{ margin:0, fontSize:".83rem", color:"rgba(255,255,255,0.7)" }}>🎬 <strong style={{ color:"#00cc66" }}>{pickedVideo.title}</strong></p>
                     </div>
+                    <p style={{ color:"rgba(255,255,255,0.4)", fontSize:".75rem", marginBottom:10 }}>Or go to <strong style={{ color:"#ffcc00", cursor:"pointer" }} onClick={() => setView("home")}>Home</strong> to add name and table, then come back and tap the video to send in one step.</p>
                     <button className="btn btn-p" onClick={submitReq} style={{ width:"100%" }} disabled={submitting}>{submitting?"Sending...":"🎤 Send Request to DJ"}</button>
                   </div>
                 )}
@@ -747,18 +798,55 @@ export default function App() {
                   <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
                     <div className="card" style={{ background:"rgba(255,0,255,.1)", border:"2px solid rgba(255,0,255,.5)", textAlign:"center" }}>
                       <h3 style={{ marginTop:0, color:"#ff88ff", fontSize:"1rem", letterSpacing:2 }}>🎤 KARAOKE NIGHT</h3>
-                      <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:14 }}>Opens native karaoke apps on both Fire TVs</p>
+                      <p style={{ color:"rgba(255,255,255,.45)", fontSize:".78rem", marginBottom:14 }}>
+                        Abre la app en la TV principal (.116) y la de cola (.64), y pone el Roku en el HDMI del Fire
+                      </p>
                       <button
                         className="btn btn-p"
                         style={{ padding:"14px 32px", fontSize:"1rem", width:"100%", letterSpacing:1 }}
-                        onClick={() => {
-                          fetch("http://192.168.3.13:3500/api/tv/2/karaoke", { method:"POST" })
-                            .then(() => fetch("http://192.168.3.13:3500/api/tv/1/karaoke", { method:"POST" }))
-                            .then(() => toast$("🎤 Karaoke Night Started!"))
-                            .catch(() => toast$("❌ Error — check server", "err"));
+                        onClick={async () => {
+                          try {
+                            const main = await postTvControl("/api/tv/2/karaoke");
+                            const stage = await postTvControl("/api/tv/1/karaoke");
+                            const okCount = [main, stage].filter((r) => r && r.ok).length;
+                            if (okCount === 2) {
+                              toast$("🎤 Karaoke Night arrancó en las pantallas");
+                            } else {
+                              toast$(`⚠️ Inicio parcial: ${okCount}/2 TVs — revisa ADB o red`, "err");
+                            }
+                          } catch (e) {
+                            toast$(`❌ ${e.message || "Error — comprobar servidor en la barra"}`, "err");
+                          }
                         }}
                       >
                         🎤 Start Karaoke Night
+                      </button>
+                    </div>
+                    <div className="card" style={{ textAlign:"center" }}>
+                      <h3 style={{ marginTop:0, color:"#ffaa66", fontSize:".95rem" }}>Reiniciar Fire TV principal</h3>
+                      <p style={{ color:"rgba(255,255,255,.4)", fontSize:".75rem", marginBottom:12 }}>
+                        Si la TV .116 queda en negro, reinicio completo del stick (~1 min)
+                      </p>
+                      <button
+                        className="btn btn-p"
+                        style={{ padding:"10px 16px", fontSize:".88rem", width:"100%", background:"linear-gradient(135deg,#662222,#331111)" }}
+                        onClick={async () => {
+                          if (!window.confirm("¿Reiniciar el Fire de la .116? (~1 min)")) return;
+                          try {
+                            const res = await fetch(`${TV_CONTROL_SERVER}/api/tv/2/reboot`, { method: "POST" });
+                            if (res.status === 404) {
+                              toast$("Falta POST /reboot en server.js", "err");
+                              return;
+                            }
+                            const r = await res.json();
+                            if (r.ok) toast$(r.message || "⏻ Reinicio enviado");
+                            else toast$("❌ Reboot no enviado", "err");
+                          } catch {
+                            toast$("❌ Error de red", "err");
+                          }
+                        }}
+                      >
+                        ⏻ Reiniciar Fire .116
                       </button>
                     </div>
                   </div>

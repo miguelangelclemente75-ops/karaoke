@@ -1,0 +1,40 @@
+/* Base móvil: safe area (notch / barra de inicio) y evitar zoom en iOS al enfocar inputs */
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+.app-shell {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* iOS: inputs < 16px hacen zoom; mantener legibilidad sin zoom forzado */
+input,
+textarea,
+select,
+.inp {
+  font-size: 16px !important;
+}
+
+/* Toques: área mínima recomendada en móviles */
+@media (max-width: 768px) {
+  button,
+  .tab,
+  .vcard {
+    min-height: 44px;
+  }
+}
