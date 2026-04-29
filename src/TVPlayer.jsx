@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function loadYoutubeIframeAPI() {
   if (typeof window === "undefined") return Promise.resolve();
@@ -36,18 +36,36 @@ function loadYoutubeIframeAPI() {
 }
 
 /**
- * TV / Fire TV: un solo camino — YT.Player crea el iframe internamente.
- * Evita el bug de pantalla negra por iframe con src + YT.Player al mismo tiempo.
+ * Fire TV / Silk: YT.Player sobre un <div> vacío suele dejar el vídeo en negro.
+ * Aquí el iframe tiene src real (embed) y el API solo se engancha después del load.
+ * mute=1 + unMute() en onReady cumple políticas de autoplay en muchos TV browsers.
  */
 const YT_PS = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
 
+function embedSrcFor(videoId) {
+  if (!videoId) return "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const p = new URLSearchParams({
+    enablejsapi: "1",
+    autoplay: "1",
+    mute: "1",
+    playsinline: "1",
+    rel: "0",
+    modestbranding: "1",
+    iv_load_policy: "3",
+  });
+  if (origin) p.set("origin", origin);
+  return `https://www.youtube.com/embed/${videoId}?${p}`;
+}
+
 export default function TVPlayer({ song, nextSong, onSongEnded }) {
-  const mountRef = useRef(null);
   const ytRef = useRef(null);
   const pollRef = useRef(null);
   const onSongEndedRef = useRef(onSongEnded);
   const loadFallbackTimerRef = useRef(null);
   const playRetryTimersRef = useRef([]);
+  const playerRef = useRef(null);
+  const cancelledRef = useRef(false);
   onSongEndedRef.current = onSongEnded;
 
   const endedSentRef = useRef(false);
@@ -59,31 +77,37 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
     setRecoverTick((n) => n + 1);
   }, []);
 
-  useEffect(() => {
-    if (!song?.videoId || !mountRef.current) return;
+  const iframeId = useMemo(
+    () => `karaoke-yt-${song?.videoId}-${recoverTick}`,
+    [song?.videoId, recoverTick]
+  );
 
-    let cancelled = false;
-    let player = null;
+  const embedSrc = useMemo(
+    () => embedSrcFor(song?.videoId),
+    [song?.videoId]
+  );
 
-    const clearPlayRetries = () => {
-      playRetryTimersRef.current.forEach((t) => clearTimeout(t));
-      playRetryTimersRef.current = [];
-    };
+  const clearPlayRetries = useCallback(() => {
+    playRetryTimersRef.current.forEach((t) => clearTimeout(t));
+    playRetryTimersRef.current = [];
+  }, []);
 
-    const schedulePlayRetries = (target) => {
+  const schedulePlayRetries = useCallback(
+    (target) => {
       clearPlayRetries();
       const tryPlay = () => {
-        if (cancelled || !target) return;
+        if (cancelledRef.current || !target) return;
         try {
+          if (typeof target.unMute === "function") target.unMute();
           target.playVideo();
         } catch (e) {
           /* ignore */
         }
       };
-      [120, 450, 1000, 2200].forEach((ms) => {
+      [200, 600, 1400, 2800].forEach((ms) => {
         playRetryTimersRef.current.push(
           setTimeout(() => {
-            if (cancelled) return;
+            if (cancelledRef.current) return;
             try {
               const st =
                 typeof target.getPlayerState === "function"
@@ -91,12 +115,6 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
                   : -1;
               if (st !== YT_PS.PLAYING && st !== YT_PS.BUFFERING) {
                 tryPlay();
-                if (
-                  typeof target.loadVideoById === "function" &&
-                  song?.videoId
-                ) {
-                  target.loadVideoById(song.videoId, 0);
-                }
               }
             } catch (e) {
               tryPlay();
@@ -104,31 +122,61 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
           }, ms)
         );
       });
-    };
+    },
+    [clearPlayRetries]
+  );
 
-    const cleanup = () => {
-      clearPlayRetries();
-      if (loadFallbackTimerRef.current) {
-        clearTimeout(loadFallbackTimerRef.current);
-        loadFallbackTimerRef.current = null;
+  const cleanupPlayer = useCallback(() => {
+    clearPlayRetries();
+    if (loadFallbackTimerRef.current) {
+      clearTimeout(loadFallbackTimerRef.current);
+      loadFallbackTimerRef.current = null;
+    }
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    const pl = playerRef.current;
+    playerRef.current = null;
+    ytRef.current = null;
+    if (pl) {
+      try {
+        pl.destroy();
+      } catch (e) {
+        /* ignore */
       }
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      if (player) {
-        try {
-          player.destroy();
-        } catch (e) {
-          /* ignore */
-        }
-        player = null;
-      }
-      ytRef.current = null;
-    };
+    }
+  }, [clearPlayRetries]);
 
-    const notifyEnd = () => {
-      if (endedSentRef.current || cancelled) return;
+  useEffect(() => {
+    if (!song?.videoId) return;
+
+    cancelledRef.current = false;
+    endedSentRef.current = false;
+    setLoading(true);
+
+    return () => {
+      cancelledRef.current = true;
+      cleanupPlayer();
+    };
+  }, [song?.videoId, recoverTick, cleanupPlayer]);
+
+  const onIframeLoad = useCallback(async () => {
+    if (cancelledRef.current || !song?.videoId) return;
+
+    cleanupPlayer();
+    cancelledRef.current = false;
+
+    try {
+      await loadYoutubeIframeAPI();
+    } catch (e) {
+      if (!cancelledRef.current) setLoading(false);
+      return;
+    }
+    if (cancelledRef.current) return;
+
+    const notifyEndLocal = () => {
+      if (endedSentRef.current || cancelledRef.current) return;
       endedSentRef.current = true;
       try {
         onSongEndedRef.current?.();
@@ -137,105 +185,70 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
       }
     };
 
-    endedSentRef.current = false;
-    setLoading(true);
-
-    (async () => {
-      try {
-        await loadYoutubeIframeAPI();
-      } catch (e) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
-      if (cancelled || !mountRef.current) return;
-
-      cleanup();
-      mountRef.current.innerHTML = "";
-
-      await new Promise((r) => setTimeout(r, 120));
-
-      if (cancelled || !mountRef.current) return;
-
-      const origin =
-        typeof window !== "undefined" && window.location?.origin
-          ? window.location.origin
-          : undefined;
-
-      try {
-        player = new window.YT.Player(mountRef.current, {
-          videoId: song.videoId,
-          width: "100%",
-          height: "100%",
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            modestbranding: 1,
-            playsinline: 1,
-            iv_load_policy: 3,
-            ...(origin ? { origin } : {}),
-          },
-          events: {
-            onReady: (ev) => {
-              if (cancelled) return;
-              ytRef.current = ev.target;
-              try {
-                ev.target.playVideo();
-              } catch (e) {
-                /* ignore */
-              }
-              schedulePlayRetries(ev.target);
-              if (loadFallbackTimerRef.current)
-                clearTimeout(loadFallbackTimerRef.current);
-              loadFallbackTimerRef.current = setTimeout(() => {
-                if (cancelled) return;
-                setLoading(false);
-              }, 9000);
-            },
-            onStateChange: (ev) => {
-              if (cancelled) return;
-              if (
-                ev.data === YT_PS.PLAYING ||
-                ev.data === YT_PS.BUFFERING
-              ) {
-                if (loadFallbackTimerRef.current) {
-                  clearTimeout(loadFallbackTimerRef.current);
-                  loadFallbackTimerRef.current = null;
-                }
-                setLoading(false);
-              }
-              if (ev.data === YT_PS.ENDED) notifyEnd();
-            },
-            onError: () => {
-              if (cancelled) return;
-              setLoading(true);
-              bumpRecover();
-            },
-          },
-        });
-        if (!cancelled) {
-          pollRef.current = setInterval(() => {
+    try {
+      const pl = new window.YT.Player(iframeId, {
+        events: {
+          onReady: (ev) => {
+            if (cancelledRef.current) return;
+            playerRef.current = ev.target;
+            ytRef.current = ev.target;
             try {
-              const p = ytRef.current;
-              if (!p || typeof p.getPlayerState !== "function") return;
-              if (p.getPlayerState() === YT_PS.ENDED) notifyEnd();
+              if (typeof ev.target.unMute === "function") ev.target.unMute();
+              ev.target.playVideo();
             } catch (e) {
-              if (!cancelled) {
-                setLoading(true);
-                bumpRecover();
-              }
+              /* ignore */
             }
-          }, 2500);
-        }
-      } catch (e) {
-        if (!cancelled) bumpRecover();
-      }
-    })();
+            schedulePlayRetries(ev.target);
+            if (loadFallbackTimerRef.current) {
+              clearTimeout(loadFallbackTimerRef.current);
+            }
+            loadFallbackTimerRef.current = setTimeout(() => {
+              if (cancelledRef.current) return;
+              setLoading(false);
+            }, 12000);
+          },
+          onStateChange: (ev) => {
+            if (cancelledRef.current) return;
+            if (ev.data === YT_PS.PLAYING || ev.data === YT_PS.BUFFERING) {
+              if (loadFallbackTimerRef.current) {
+                clearTimeout(loadFallbackTimerRef.current);
+                loadFallbackTimerRef.current = null;
+              }
+              setLoading(false);
+            }
+            if (ev.data === YT_PS.ENDED) notifyEndLocal();
+          },
+          onError: () => {
+            if (cancelledRef.current) return;
+            setLoading(true);
+            bumpRecover();
+          },
+        },
+      });
+      playerRef.current = pl;
 
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [song?.videoId, recoverTick, bumpRecover]);
+      pollRef.current = setInterval(() => {
+        try {
+          const p = ytRef.current;
+          if (!p || typeof p.getPlayerState !== "function") return;
+          if (p.getPlayerState() === YT_PS.ENDED) notifyEndLocal();
+        } catch (e) {
+          if (!cancelledRef.current) {
+            setLoading(true);
+            bumpRecover();
+          }
+        }
+      }, 2500);
+    } catch (e) {
+      if (!cancelledRef.current) bumpRecover();
+    }
+  }, [
+    iframeId,
+    song?.videoId,
+    bumpRecover,
+    schedulePlayRetries,
+    cleanupPlayer,
+  ]);
 
   useEffect(() => {
     const onVis = () => {
@@ -376,13 +389,20 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
           )}
         </div>
       )}
-      <div
-        ref={mountRef}
+      <iframe
+        key={`${song?.videoId}-${recoverTick}`}
+        id={iframeId}
+        title="YouTube Karaoke"
+        src={embedSrc}
+        onLoad={onIframeLoad}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+        allowFullScreen
         style={{
+          position: "absolute",
+          inset: 0,
           width: "100%",
           height: "100%",
-          opacity: loading ? 0 : 1,
-          transition: "opacity 0.35s ease",
+          border: 0,
         }}
       />
     </div>
