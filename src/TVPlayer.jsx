@@ -66,6 +66,7 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
   const playRetryTimersRef = useRef([]);
   const playerRef = useRef(null);
   const cancelledRef = useRef(false);
+  const currentVideoIdRef = useRef(song?.videoId);
   onSongEndedRef.current = onSongEnded;
 
   const endedSentRef = useRef(false);
@@ -149,6 +150,10 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
   }, [clearPlayRetries]);
 
   useEffect(() => {
+    currentVideoIdRef.current = song?.videoId;
+  }, [song?.videoId]);
+
+  useEffect(() => {
     if (!song?.videoId) return;
 
     cancelledRef.current = false;
@@ -162,10 +167,10 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
   }, [song?.videoId, recoverTick, cleanupPlayer]);
 
   const onIframeLoad = useCallback(async () => {
-    if (cancelledRef.current || !song?.videoId) return;
+    const videoIdWhenLoad = song?.videoId;
+    if (cancelledRef.current || !videoIdWhenLoad) return;
 
     cleanupPlayer();
-    cancelledRef.current = false;
 
     try {
       await loadYoutubeIframeAPI();
@@ -173,7 +178,12 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
       if (!cancelledRef.current) setLoading(false);
       return;
     }
-    if (cancelledRef.current) return;
+    if (
+      cancelledRef.current ||
+      videoIdWhenLoad !== currentVideoIdRef.current
+    ) {
+      return;
+    }
 
     const notifyEndLocal = () => {
       if (endedSentRef.current || cancelledRef.current) return;
