@@ -58,6 +58,12 @@ function embedSrcFor(videoId) {
   return `https://www.youtube.com/embed/${videoId}?${p}`;
 }
 
+function isLikelySilkOrFireTvBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /\bSilk\b|AmazonWeb|AFT[A-Z][A-Za-z0-9]*|Fire ?TV/i.test(ua);
+}
+
 export default function TVPlayer({ song, nextSong, onSongEnded }) {
   const ytRef = useRef(null);
   const pollRef = useRef(null);
@@ -395,6 +401,20 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
               }}
             >
               UP NEXT: {nextSong.title} {nextSong.singer}
+            </div>
+          )}
+          {isLikelySilkOrFireTvBrowser() && (
+            <div
+              style={{
+                color: "rgba(255,200,100,0.55)",
+                fontSize: "clamp(.65rem,1.4vw,.85rem)",
+                textAlign: "center",
+                maxWidth: "92vw",
+                marginTop: 10,
+                lineHeight: 1.4,
+              }}
+            >
+              Fire TV (navegador Silk): menú ⋮ → <strong>Solicitar sitio de escritorio</strong> si el vídeo sale negro.
             </div>
           )}
         </div>
