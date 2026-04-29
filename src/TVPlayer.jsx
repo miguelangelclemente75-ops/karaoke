@@ -42,6 +42,9 @@ function loadYoutubeIframeAPI() {
  */
 const YT_PS = { ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
 
+/** En Fire TV el audio arranca antes que PLAYING/BUFFERING; si no, el cartel tapa el vídeo. */
+const OVERLAY_EARLY_HIDE_MS = 500;
+
 function embedSrcFor(videoId) {
   if (!videoId) return "";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -69,6 +72,7 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
   const pollRef = useRef(null);
   const onSongEndedRef = useRef(onSongEnded);
   const loadFallbackTimerRef = useRef(null);
+  const earlyOverlayTimerRef = useRef(null);
   const playRetryTimersRef = useRef([]);
   const playerRef = useRef(null);
   const cancelledRef = useRef(false);
@@ -135,6 +139,10 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
 
   const cleanupPlayer = useCallback(() => {
     clearPlayRetries();
+    if (earlyOverlayTimerRef.current) {
+      clearTimeout(earlyOverlayTimerRef.current);
+      earlyOverlayTimerRef.current = null;
+    }
     if (loadFallbackTimerRef.current) {
       clearTimeout(loadFallbackTimerRef.current);
       loadFallbackTimerRef.current = null;
@@ -215,17 +223,28 @@ export default function TVPlayer({ song, nextSong, onSongEnded }) {
               /* ignore */
             }
             schedulePlayRetries(ev.target);
+            if (earlyOverlayTimerRef.current) {
+              clearTimeout(earlyOverlayTimerRef.current);
+            }
+            earlyOverlayTimerRef.current = setTimeout(() => {
+              earlyOverlayTimerRef.current = null;
+              if (!cancelledRef.current) setLoading(false);
+            }, OVERLAY_EARLY_HIDE_MS);
             if (loadFallbackTimerRef.current) {
               clearTimeout(loadFallbackTimerRef.current);
             }
             loadFallbackTimerRef.current = setTimeout(() => {
               if (cancelledRef.current) return;
               setLoading(false);
-            }, 12000);
+            }, 9000);
           },
           onStateChange: (ev) => {
             if (cancelledRef.current) return;
             if (ev.data === YT_PS.PLAYING || ev.data === YT_PS.BUFFERING) {
+              if (earlyOverlayTimerRef.current) {
+                clearTimeout(earlyOverlayTimerRef.current);
+                earlyOverlayTimerRef.current = null;
+              }
               if (loadFallbackTimerRef.current) {
                 clearTimeout(loadFallbackTimerRef.current);
                 loadFallbackTimerRef.current = null;
